@@ -20,7 +20,7 @@ type Linker struct {
 }
 
 type BuildLink interface {
-	build(counterPlaces int, counterTransitions int, kVariant int, isInfo bool) BuildLink
+	build(namePlace string, counterPlaces int, nameTransition string, counterTransitions int, kVariant int, isInfo bool) BuildLink
 
 	getQuantity() int
 	setQuantity(int) BuildLink
@@ -43,13 +43,19 @@ type BuildLink interface {
 
 	printInfo()
 	printParams()
+
+	clone() BuildLink
 }
 
-func (l *Linker) build(counterPlaces int, counterTransitions, kVariant int, info bool) BuildLink {
+func (l *Linker) build(namePlace string, counterPlaces int, nameTransition string, counterTransitions int, kVariant int, info bool) BuildLink {
+	l.namePlace = namePlace
 	l.counterPlaces = counterPlaces
+	l.nameTransition = nameTransition
 	l.counterTransitions = counterTransitions
 	l.kVariant = kVariant
 	l.info = info
+	l.number = l.next
+	l.next++
 	return l
 }
 
@@ -120,4 +126,10 @@ func (l *Linker) printInfo() {
 
 func (l *Linker) printParams() {
 	fmt.Println("Test")
+}
+
+func (l *Linker) clone() BuildLink {
+	var n Linker
+	n = *l
+	return &n
 }
