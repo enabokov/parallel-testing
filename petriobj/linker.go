@@ -19,7 +19,6 @@ type Linker struct {
 	number int
 }
 
-
 type BuildLink interface {
 	build(counterPlaces int, counterTransitions int, kVariant int, isInfo bool) BuildLink
 
