@@ -67,6 +67,28 @@ type BuildTransition interface {
 	clone() BuildTransition
 }
 
+func (t *Transition) build(transitionName string, timeDelay float64, probability float64) Transition {
+	t.name = transitionName
+	t.avgTimeServing = timeDelay
+	t.avgDeviation = 0
+	t.timeServing = t.avgTimeServing
+	t.buffer = 0
+	t.minTime = math.MaxFloat64
+	t.iMultiChannel = 0
+	t.mean = 0
+	t.observedMax = float64(t.buffer)
+	t.observedMin = float64(t.buffer)
+	t.probability = probability
+	t.priority = 0
+	t.distribution = ""
+	t.iTransition = t.next
+	t.next++
+	t.timeout = append(t.timeout, math.MaxFloat64)
+	t.minEvent()
+
+	return *t
+}
+
 func (t *Transition) setTimeModeling(m float64) BuildTransition {
 	t.timeModeling = m
 	return t

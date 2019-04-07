@@ -16,6 +16,7 @@ type Net struct {
 }
 
 type BuildNet interface {
+	build(string, []Place, []Transition, []Linker, []Linker) Net
 	findPlaceByName(string) int
 	getCurrentMark(string) float64
 	getMeanMark(string) float64
@@ -29,7 +30,7 @@ type BuildNet interface {
 	clone() BuildNet
 }
 
-func (n *Net) build(name string, places []Place, transitions []Transition, linksIn []Linker, linksOut []Linker) BuildNet {
+func (n *Net) build(name string, places []Place, transitions []Transition, linksIn []Linker, linksOut []Linker) Net {
 	n.name = name
 	n.counterPlace = len(places)
 	n.counterTransition = len(transitions)
@@ -42,11 +43,11 @@ func (n *Net) build(name string, places []Place, transitions []Transition, links
 	n.linksOut = linksOut[:]
 
 	for _, t := range n.transitions {
-		t.createInPlaces(places, linksIn);
-		t.createOutPlaces(places, linksOut);
+		t.createInPlaces(places, linksIn)
+		t.createOutPlaces(places, linksOut)
 	}
 
-	return n
+	return *n
 }
 
 func (n *Net) findPlaceByName(placeName string) int {
