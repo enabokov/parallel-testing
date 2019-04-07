@@ -39,7 +39,7 @@ type BuildPlace interface {
 	isExternal() bool
 	setExternal(bool) BuildPlace
 
-	printParams()
+	print()
 
 	clone() BuildPlace
 }
@@ -47,6 +47,11 @@ type BuildPlace interface {
 func (p *Place) build(name string, mark float64) BuildPlace {
 	p.name = name
 	p.mark = mark
+	p.mean = 0
+	p.number = p.next
+	p.next++
+	p.observedMax = mark
+	p.observedMin = mark
 	return p
 }
 
@@ -130,7 +135,7 @@ func (p *Place) setExternal(e bool) BuildPlace {
 	return p
 }
 
-func (p *Place) printParams() {
+func (p *Place) print() {
 	fmt.Printf("%+v", p)
 }
 
