@@ -3,15 +3,15 @@ package petriobj
 import "fmt"
 
 type Place struct {
-	mark float64
-	name string
+	mark   float64
+	name   string
 	number int
-	mean float64
+	mean   float64
 
 	observedMax float64
 	observedMin float64
 
-	next int
+	next     int
 	external bool
 }
 
@@ -21,10 +21,10 @@ type BuildPlace interface {
 	getMean() float64
 	setMean(float64) BuildPlace // synchronized
 
-	getMark() float64 // synchronized
+	getMark() float64           // synchronized
 	setMark(float64) BuildPlace // synchronized
-	incrMark(float64) // synchronized
-	decrMark(float64) // synchronized
+	incrMark(float64)           // synchronized
+	decrMark(float64)           // synchronized
 
 	getObservedMax() float64
 	getObservedMin() float64
@@ -60,7 +60,7 @@ func (p *Place) getMean() float64 {
 }
 
 func (p *Place) setMean(m float64) BuildPlace {
-	p.mean = p.mean + (p.mark - p.mean) * m
+	p.mean = p.mean + (p.mark-p.mean)*m
 	return p
 }
 
