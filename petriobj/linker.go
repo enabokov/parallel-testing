@@ -6,16 +6,16 @@ import (
 )
 
 type Linker struct {
-	namePlace string
+	namePlace     string
 	counterPlaces int
 
-	nameTransition string
+	nameTransition     string
 	counterTransitions int
 
 	kVariant int
-	info bool
+	info     bool
 
-	next int
+	next   int
 	number int
 }
 

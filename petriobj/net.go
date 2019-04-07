@@ -3,16 +3,16 @@ package petriobj
 import "fmt"
 
 type Net struct {
-	name string
-	counterPlace int
+	name              string
+	counterPlace      int
 	counterTransition int
-	counterIn int
-	counterOut int
+	counterIn         int
+	counterOut        int
 
-	places []Place
+	places      []Place
 	transitions []Transition
-	linksIn []Linker
-	linksOut []Linker
+	linksIn     []Linker
+	linksOut    []Linker
 }
 
 type BuildNet interface {

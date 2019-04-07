@@ -8,31 +8,31 @@ import (
 )
 
 type Transition struct {
-	timeModeling float64
-	name string
-	buffer int
-	priority int
-	probability float64
-	minTime float64
-	timeServing float64
+	timeModeling   float64
+	name           string
+	buffer         int
+	priority       int
+	probability    float64
+	minTime        float64
+	timeServing    float64
 	avgTimeServing float64
-	avgDeviation float64
-	distribution string
+	avgDeviation   float64
+	distribution   string
 
-	timeout []float64
-	inPlaces []int
-	inPlacesWithInfo []int
-	counterInPlaces []int
+	timeout               []float64
+	inPlaces              []int
+	inPlacesWithInfo      []int
+	counterInPlaces       []int
 	counterPlacesWithInfo []int
-	outPlaces []int
-	counterOutPlaces []int
+	outPlaces             []int
+	counterOutPlaces      []int
 
 	iMultiChannel int
-	iTransition int
-	mean float64
-	observedMin float64
-	observedMax float64
-	next int
+	iTransition   int
+	mean          float64
+	observedMin   float64
+	observedMax   float64
+	next          int
 }
 
 type BuildTransition interface {
@@ -244,7 +244,7 @@ func (t *Transition) actIn(places []Place, currentTime float64) BuildTransition 
 			t.timeout = make([]float64, 1)
 			t.timeout[0] = currentTime + t.timeServing
 		} else {
-			t.timeout = append(t.timeout, currentTime + t.timeServing)
+			t.timeout = append(t.timeout, currentTime+t.timeServing)
 		}
 
 		t.buffer++
