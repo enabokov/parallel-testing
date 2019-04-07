@@ -29,6 +29,26 @@ type BuildNet interface {
 	clone() BuildNet
 }
 
+func (n *Net) build(name string, places []Place, transitions []Transition, linksIn []Linker, linksOut []Linker) BuildNet {
+	n.name = name
+	n.counterPlace = len(places)
+	n.counterTransition = len(transitions)
+	n.counterIn = len(linksIn)
+	n.counterOut = len(linksOut)
+
+	n.places = places[:]
+	n.transitions = transitions[:]
+	n.linksIn = linksIn[:]
+	n.linksOut = linksOut[:]
+
+	for _, t := range n.transitions {
+		t.createInPlaces(places, linksIn);
+		t.createOutPlaces(places, linksOut);
+	}
+
+	return n
+}
+
 func (n *Net) findPlaceByName(placeName string) int {
 	for i, place := range n.places {
 		if placeName == place.getName() {
