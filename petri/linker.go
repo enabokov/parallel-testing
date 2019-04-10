@@ -19,7 +19,7 @@ type Linker struct {
 }
 
 type BuildLink interface {
-	build(place Place, transition Transition, kVariant int, isInfo bool, c *globalCounter) Linker
+	Build(place Place, transition Transition, kVariant int, isInfo bool, c *GlobalCounter) Linker
 
 	getQuantity() int
 	setQuantity(int) BuildLink
@@ -36,7 +36,7 @@ type BuildLink interface {
 	getCounterTransitions() int
 	setCounterTransitions(int) BuildLink
 
-	initNext(*globalCounter) BuildLink
+	initNext(*GlobalCounter) BuildLink
 	isInfo() bool
 	setInfo(bool) BuildLink
 
@@ -46,15 +46,15 @@ type BuildLink interface {
 	clone() BuildLink
 }
 
-func (l *Linker) build(place Place, transition Transition, kVariant int, info bool, c *globalCounter) Linker {
-	l.namePlace = place.name
-	l.counterPlaces = place.number
-	l.nameTransition = transition.name
-	l.counterTransitions = transition.number
+func (l *Linker) Build(place Place, transition Transition, kVariant int, info bool, c *GlobalCounter) Linker {
+	l.namePlace = place.Name
+	l.counterPlaces = place.Number
+	l.nameTransition = transition.Name
+	l.counterTransitions = transition.Number
 	l.kVariant = kVariant
 	l.info = info
-	l.number = c.link
-	c.link++
+	l.Number = c.Link
+	c.Link++
 	return *l
 }
 
@@ -103,8 +103,8 @@ func (l *Linker) setCounterTransitions(c int) BuildLink {
 	return l
 }
 
-func (l *Linker) initNext(c *globalCounter) BuildLink {
-	c.link = 0
+func (l *Linker) initNext(c *GlobalCounter) BuildLink {
+	c.Link = 0
 	return l
 }
 

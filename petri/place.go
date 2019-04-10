@@ -3,19 +3,19 @@ package petri
 import "fmt"
 
 type Place struct {
-	mark   float64
-	name   string
-	number int
-	mean   float64
+	Mark   float64
+	Name   string
+	Number int
+	Mean   float64
 
-	observedMax float64
-	observedMin float64
+	ObservedMax float64
+	ObservedMin float64
 
-	external bool
+	External bool
 }
 
 type BuildPlace interface {
-	build(name string, mark float64, c *globalCounter) Place
+	Build(name string, mark float64, c *GlobalCounter) Place
 
 	getMean() float64
 	setMean(float64) BuildPlace // synchronized
@@ -34,7 +34,7 @@ type BuildPlace interface {
 	getNumber() int
 	setNumber(int) BuildPlace
 
-	initNext(*globalCounter) BuildPlace
+	initNext(*GlobalCounter) BuildPlace
 	isExternal() bool
 	setExternal(bool) BuildPlace
 
@@ -43,94 +43,94 @@ type BuildPlace interface {
 	clone() BuildPlace
 }
 
-func (p *Place) build(name string, mark float64, c *globalCounter) Place {
-	p.name = name
-	p.mark = mark
-	p.mean = 0
-	p.number = c.place
-	c.place++
-	p.observedMax = mark
-	p.observedMin = mark
+func (p *Place) Build(name string, mark float64, c *GlobalCounter) Place {
+	p.Name = name
+	p.Mark = mark
+	p.Mean = 0
+	p.Number = c.Place
+	c.Place++
+	p.ObservedMax = mark
+	p.ObservedMin = mark
 	return *p
 }
 
 func (p *Place) getMean() float64 {
-	return p.mean
+	return p.Mean
 }
 
 func (p *Place) setMean(m float64) BuildPlace {
-	p.mean = p.mean + (p.mark-p.mean)*m
+	p.Mean = p.Mean + (p.Mark-p.Mean)*m
 	return p
 }
 
 func (p *Place) getMark() float64 {
-	return p.mark
+	return p.Mark
 }
 
 func (p *Place) setMark(m float64) BuildPlace {
-	p.mark = m
+	p.Mark = m
 	return p
 }
 
 func (p *Place) incrMark(m float64) {
-	p.mark += m
-	if p.observedMax < p.mark {
-		p.observedMax = p.mark
+	p.Mark += m
+	if p.ObservedMax < p.Mark {
+		p.ObservedMax = p.Mark
 	}
 
-	if p.observedMin > p.mark {
-		p.observedMin = p.mark
+	if p.ObservedMin > p.Mark {
+		p.ObservedMin = p.Mark
 	}
 }
 
 func (p *Place) decrMark(m float64) {
-	p.mark -= m
-	if p.observedMax < p.mark {
-		p.observedMax = p.mark
+	p.Mark -= m
+	if p.ObservedMax < p.Mark {
+		p.ObservedMax = p.Mark
 	}
 
-	if p.observedMin > p.mark {
-		p.observedMin = p.mark
+	if p.ObservedMin > p.Mark {
+		p.ObservedMin = p.Mark
 	}
 }
 
 func (p *Place) getObservedMax() float64 {
-	return p.observedMax
+	return p.ObservedMax
 }
 
 func (p *Place) getObservedMin() float64 {
-	return p.observedMin
+	return p.ObservedMin
 }
 
 func (p *Place) getName() string {
-	return p.name
+	return p.Name
 }
 
 func (p *Place) setName(n string) BuildPlace {
-	p.name = n
+	p.Name = n
 	return p
 }
 
 func (p *Place) getNumber() int {
-	return p.number
+	return p.Number
 }
 
 func (p *Place) setNumber(n int) BuildPlace {
-	p.number = n
+	p.Number = n
 	return p
 }
 
-func (p *Place) initNext(c *globalCounter) BuildPlace {
-	c.place = 0
+func (p *Place) initNext(c *GlobalCounter) BuildPlace {
+	c.Place = 0
 	return p
 }
 
 func (p *Place) isExternal() bool {
-	return p.external
+	return p.External
 }
 
 func (p *Place) setExternal(e bool) BuildPlace {
-	p.external = e
+	p.External = e
 	return p
 }
 
