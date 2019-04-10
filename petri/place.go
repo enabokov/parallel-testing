@@ -11,12 +11,11 @@ type Place struct {
 	observedMax float64
 	observedMin float64
 
-	next     int
 	external bool
 }
 
 type BuildPlace interface {
-	build(name string, mark float64) Place
+	build(name string, mark float64, c *globalCounter) Place
 
 	getMean() float64
 	setMean(float64) BuildPlace // synchronized
@@ -35,7 +34,7 @@ type BuildPlace interface {
 	getNumber() int
 	setNumber(int) BuildPlace
 
-	initNext() BuildPlace
+	initNext(*globalCounter) BuildPlace
 	isExternal() bool
 	setExternal(bool) BuildPlace
 
@@ -44,12 +43,12 @@ type BuildPlace interface {
 	clone() BuildPlace
 }
 
-func (p *Place) build(name string, mark float64) Place {
+func (p *Place) build(name string, mark float64, c *globalCounter) Place {
 	p.name = name
 	p.mark = mark
 	p.mean = 0
-	p.number = p.next
-	p.next++
+	p.number = c.place
+	c.place++
 	p.observedMax = mark
 	p.observedMin = mark
 	return *p
@@ -121,8 +120,8 @@ func (p *Place) setNumber(n int) BuildPlace {
 	return p
 }
 
-func (p *Place) initNext() BuildPlace {
-	p.next = 0
+func (p *Place) initNext(c *globalCounter) BuildPlace {
+	c.place = 0
 	return p
 }
 
