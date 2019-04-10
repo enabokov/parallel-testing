@@ -1,4 +1,4 @@
-package petriobj
+package petri
 
 import (
 	"fmt"
@@ -28,11 +28,10 @@ type Transition struct {
 	counterOutPlaces      []int
 
 	iMultiChannel int
-	iTransition   int
+	number        int
 	mean          float64
 	observedMin   float64
 	observedMax   float64
-	next          int
 }
 
 type BuildTransition interface {
@@ -46,7 +45,7 @@ type BuildTransition interface {
 	setAvgTimeServing(float64) BuildTransition
 	setName(string) BuildTransition
 	setIMultiChannel(int) BuildTransition
-	setITransition(int) BuildTransition
+	setNumber(int) BuildTransition
 
 	generateTimeServing() float64
 
@@ -59,7 +58,7 @@ type BuildTransition interface {
 	condition([]Place) bool
 	actIn([]Place, float64) BuildTransition
 	actOut([]Place) BuildTransition
-	initNext() BuildTransition
+	initNext(*globalCounter) BuildTransition
 	minEvent() BuildTransition
 
 	print()
@@ -67,7 +66,7 @@ type BuildTransition interface {
 	clone() BuildTransition
 }
 
-func (t *Transition) build(transitionName string, timeDelay float64, probability float64) Transition {
+func (t *Transition) build(transitionName string, timeDelay float64, probability float64, c *globalCounter) Transition {
 	t.name = transitionName
 	t.avgTimeServing = timeDelay
 	t.avgDeviation = 0
@@ -81,8 +80,8 @@ func (t *Transition) build(transitionName string, timeDelay float64, probability
 	t.probability = probability
 	t.priority = 0
 	t.distribution = ""
-	t.iTransition = t.next
-	t.next++
+	t.number = c.transition
+	c.transition++
 	t.timeout = append(t.timeout, math.MaxFloat64)
 	t.minEvent()
 
@@ -94,8 +93,8 @@ func (t *Transition) setTimeModeling(m float64) BuildTransition {
 	return t
 }
 
-func (t *Transition) initNext() BuildTransition {
-	t.next = 0
+func (t *Transition) initNext(c *globalCounter) BuildTransition {
+	c.transition = 0
 	return t
 }
 
@@ -142,8 +141,8 @@ func (t *Transition) setIMultiChannel(v int) BuildTransition {
 	return t
 }
 
-func (t *Transition) setITransition(v int) BuildTransition {
-	t.iTransition = v
+func (t *Transition) setNumber(v int) BuildTransition {
+	t.number = v
 	return t
 }
 
@@ -178,7 +177,7 @@ func (t *Transition) setMultiChannel(m int) BuildTransition {
 }
 
 func (t *Transition) setTransition(v int) BuildTransition {
-	t.iTransition = v
+	t.number = v
 	return t
 }
 

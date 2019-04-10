@@ -1,4 +1,4 @@
-package petriobj
+package petri
 
 import (
 	"fmt"

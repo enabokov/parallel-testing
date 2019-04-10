@@ -1,4 +1,4 @@
-package petriobj
+package petri
 
 import (
 	"fmt"
@@ -15,12 +15,11 @@ type Linker struct {
 	kVariant int
 	info     bool
 
-	next   int
 	number int
 }
 
 type BuildLink interface {
-	build(Place, Transition, kVariant int, isInfo bool) Linker
+	build(place Place, transition Transition, kVariant int, isInfo bool, c *globalCounter) Linker
 
 	getQuantity() int
 	setQuantity(int) BuildLink
@@ -37,7 +36,7 @@ type BuildLink interface {
 	getCounterTransitions() int
 	setCounterTransitions(int) BuildLink
 
-	initNext() BuildLink
+	initNext(*globalCounter) BuildLink
 	isInfo() bool
 	setInfo(bool) BuildLink
 
@@ -47,15 +46,15 @@ type BuildLink interface {
 	clone() BuildLink
 }
 
-func (l *Linker) build(place Place, transition Transition, kVariant int, info bool) Linker {
+func (l *Linker) build(place Place, transition Transition, kVariant int, info bool, c *globalCounter) Linker {
 	l.namePlace = place.name
 	l.counterPlaces = place.number
 	l.nameTransition = transition.name
-	l.counterTransitions = transition.iTransition
+	l.counterTransitions = transition.number
 	l.kVariant = kVariant
 	l.info = info
-	l.number = l.next
-	l.next++
+	l.number = c.link
+	c.link++
 	return *l
 }
 
@@ -104,8 +103,8 @@ func (l *Linker) setCounterTransitions(c int) BuildLink {
 	return l
 }
 
-func (l *Linker) initNext() BuildLink {
-	l.next = 0
+func (l *Linker) initNext(c *globalCounter) BuildLink {
+	c.link = 0
 	return l
 }
 
