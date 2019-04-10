@@ -9,6 +9,11 @@ type globalCounter struct {
 	simulator  int
 }
 
+type globalTime struct {
+	currentTime float64
+	modTime     float64
+}
+
 func CreateNetGenerator(timeModeling float64, timeGen float64, distribution string) Net {
 	var places []Place
 	var transitions []Transition

@@ -12,13 +12,12 @@ import (
 )
 
 type Simulator struct {
-	timeCurrent float64
-	timeMod     float64
-	timeLocal   float64
-	name        string
-	numObject   int
-	priority    int
-	timeMin     float64
+	gtime     *globalTime
+	timeLocal float64
+	name      string
+	numObject int
+	priority  int
+	timeMin   float64
 
 	numP   int
 	numT   int
@@ -54,7 +53,7 @@ type Simulator struct {
 }
 
 type BuildSimulator interface {
-	build(Net, *globalCounter) Simulator
+	build(Net, *globalCounter, *globalTime) Simulator
 
 	getEventMin() Transition
 	getTimeExternalInput() []float64 // atomic
@@ -81,14 +80,17 @@ type BuildSimulator interface {
 	goUntilConference(float64)
 	goUntil(float64)
 	moveTimeLocal(float64)
+	doT()
 	run()
 }
 
-func (s *Simulator) build(n Net, c *globalCounter) Simulator {
+func (s *Simulator) build(n Net, c *globalCounter, t *globalTime) Simulator {
 	s.net = n
 	s.name = n.name
 	s.numObject = c.simulator
 	c.simulator++
+	s.gtime = t
+	s.timeLocal = s.gtime.currentTime
 	s.timeMin = math.MaxFloat64
 
 	copy(s.places, n.places[:])
@@ -157,30 +159,30 @@ func (s *Simulator) sortTransitionsByPriority(t []Transition) {
 }
 
 func (s *Simulator) step() {
-	log.Printf("[next step] time: %f\n", s.timeCurrent)
+	log.Printf("[next step] time: %f\n", s.gtime.currentTime)
 	s.printMark()
 	activeTransitions := s.findActiveTransition()
 
-	if (len(activeTransitions) == 0 && s.isBufferEmpty()) || (s.timeCurrent >= s.timeMod) {
+	if (len(activeTransitions) == 0 && s.isBufferEmpty()) || (s.gtime.currentTime >= s.gtime.modTime) {
 		log.Printf("[stop] in Net %s\n", s.name)
-		s.timeMin = s.timeMod
+		s.timeMin = s.gtime.modTime
 		for _, p := range s.places {
-			p.setMean((s.timeMin - s.timeCurrent) / s.timeMod)
+			p.setMean((s.timeMin - s.gtime.currentTime) / s.gtime.modTime)
 		}
 
 		for _, t := range s.transitions {
-			t.setMean((s.timeMin - s.timeCurrent) / s.timeMod)
+			t.setMean((s.timeMin - s.gtime.currentTime) / s.gtime.modTime)
 		}
 
 		// propagating time
-		s.timeCurrent = s.timeMin
+		s.gtime.currentTime = s.timeMin
 
 		return
 	}
 
 	for len(activeTransitions) > 0 {
 		// resolving conflicts
-		s.doConflict(activeTransitions).actIn(s.places, s.timeCurrent)
+		s.doConflict(activeTransitions).actIn(s.places, s.gtime.currentTime)
 
 		// refresh list of active transitions
 		activeTransitions = s.findActiveTransition()
@@ -190,17 +192,17 @@ func (s *Simulator) step() {
 	s.processEventMin()
 
 	for _, p := range s.places {
-		p.setMean((s.timeMin - s.timeCurrent) / s.timeMod)
+		p.setMean((s.timeMin - s.gtime.currentTime) / s.gtime.modTime)
 	}
 
 	for _, t := range s.transitions {
-		t.setMean((s.timeMin - s.timeCurrent) / s.timeMod)
+		t.setMean((s.timeMin - s.gtime.currentTime) / s.gtime.modTime)
 	}
 
 	// propagate time
-	s.timeCurrent = s.timeMod
+	s.gtime.currentTime = s.gtime.modTime
 
-	if s.timeCurrent <= s.timeMod {
+	if s.gtime.currentTime <= s.gtime.modTime {
 
 		// exit markers
 		s.eventMin.actOut(s.places)
@@ -209,7 +211,7 @@ func (s *Simulator) step() {
 			u := true
 			for u {
 				s.eventMin.minEvent()
-				if s.eventMin.minTime == s.timeCurrent {
+				if s.eventMin.minTime == s.gtime.currentTime {
 					s.eventMin.actOut(s.places)
 				} else {
 					u = false
@@ -220,7 +222,7 @@ func (s *Simulator) step() {
 		// WARNING: output from all transitions
 		// time of out markers == current time
 		for _, t := range s.transitions {
-			if t.buffer > 0 && t.minTime == s.timeCurrent {
+			if t.buffer > 0 && t.minTime == s.gtime.currentTime {
 
 				// exit markers from transition that responds to the closest time range
 				t.actOut(s.places)
@@ -229,7 +231,7 @@ func (s *Simulator) step() {
 					u := true
 					for u {
 						t.minEvent()
-						if t.minTime == s.timeCurrent {
+						if t.minTime == s.gtime.currentTime {
 							t.actOut(s.places)
 						} else {
 							u = false
@@ -416,11 +418,11 @@ func (s *Simulator) isStop() bool {
 
 func (s *Simulator) doStatistics() {
 	for _, p := range s.places {
-		p.setMean((s.timeMin - s.timeCurrent) / s.timeMod)
+		p.setMean((s.timeMin - s.gtime.currentTime) / s.gtime.modTime)
 	}
 
 	for _, t := range s.transitions {
-		t.setMean((s.timeMin - s.timeCurrent) / s.timeMod)
+		t.setMean((s.timeMin - s.gtime.currentTime) / s.gtime.modTime)
 	}
 }
 
@@ -447,8 +449,8 @@ func (s *Simulator) writeStatistics() {
 }
 
 func (s *Simulator) goo() {
-	s.timeCurrent = 0
-	for s.timeCurrent <= s.timeMod && !s.isStop() {
+	s.gtime.currentTime = 0
+	for s.gtime.currentTime <= s.gtime.modTime && !s.isStop() {
 		s.step()
 		if s.isStop() {
 			log.Printf("[STOP] in Net %s", s.name)
@@ -478,7 +480,7 @@ func (s *Simulator) goUntilConference(limitTime float64) {
 
 		s.input()
 		if s.timeMin < limit {
-			s.doStatisticsWithInterval((s.timeMin - s.timeLocal) / s.timeMin) // maybe / s.timeMode
+			s.doStatisticsWithInterval((s.timeMin - s.timeLocal) / s.timeMin) // maybe / s.gtime.modTime
 			s.timeLocal = s.timeMin
 			s.output()
 		} else {
@@ -487,7 +489,7 @@ func (s *Simulator) goUntilConference(limitTime float64) {
 					s.doStatisticsWithInterval((limit - s.timeLocal) / limit)
 					s.timeLocal = limit
 				} else {
-					limit = s.timeMod
+					limit = s.gtime.modTime
 					s.doStatisticsWithInterval((limit - s.timeLocal) / limit)
 					s.timeLocal = limit
 				}
@@ -496,7 +498,7 @@ func (s *Simulator) goUntilConference(limitTime float64) {
 				s.timeLocal = limit
 			}
 
-			if limit >= s.timeMod {
+			if limit >= s.gtime.modTime {
 				if s.nextObj != nil {
 					s.nextObj.mux.Lock()
 					s.nextObj.addTimeExternalInput(math.MaxFloat64)
@@ -512,7 +514,7 @@ func (s *Simulator) goUntilConference(limitTime float64) {
 				}
 			}
 
-			if s.timeExternalInput[0] > s.timeMod {
+			if s.timeExternalInput[0] > s.gtime.modTime {
 				if s.nextObj != nil {
 					s.nextObj.mux.Lock()
 					s.nextObj.addTimeExternalInput(math.MaxFloat64)
@@ -537,7 +539,7 @@ func (s *Simulator) goUntilConference(limitTime float64) {
 				}
 
 				if len(s.timeExternalInput) > 0 {
-					if s.timeExternalInput[0] > s.timeMod {
+					if s.timeExternalInput[0] > s.gtime.modTime {
 						if s.nextObj != nil {
 							s.nextObj.mux.Lock()
 							s.nextObj.addTimeExternalInput(math.MaxFloat64)
@@ -582,8 +584,8 @@ func (s *Simulator) goUntil(limitTime float64) {
 			s.moveTimeLocal(s.timeMin)
 			s.output()
 		} else {
-			if limit >= s.timeMod {
-				s.moveTimeLocal(s.timeMod)
+			if limit >= s.gtime.modTime {
+				s.moveTimeLocal(s.gtime.modTime)
 				if s.nextObj != nil {
 					s.nextObj.mux.Lock()
 					s.nextObj.addTimeExternalInput(math.MaxFloat64)
@@ -600,8 +602,8 @@ func (s *Simulator) goUntil(limitTime float64) {
 						}
 					}
 
-					if s.timeExternalInput[0] > s.timeMod {
-						s.moveTimeLocal(s.timeMod)
+					if s.timeExternalInput[0] > s.gtime.modTime {
+						s.moveTimeLocal(s.gtime.modTime)
 						if s.nextObj != nil {
 							s.nextObj.mux.Lock()
 							// cond lock
@@ -629,21 +631,21 @@ func (s *Simulator) goUntil(limitTime float64) {
 }
 
 func (s *Simulator) run() {
-	for s.timeLocal < s.timeMod {
-		limitTime := s.timeMod
+	for s.timeLocal < s.gtime.modTime {
+		limitTime := s.gtime.modTime
 		if s.prevObj != nil {
 			s.mux.Lock()
 			for len(s.timeExternalInput) == 0 {
 				// lock cond
 			}
 			limitTime = s.timeExternalInput[0]
-			if limitTime > s.timeMod {
-				limitTime = s.timeMod
+			if limitTime > s.gtime.modTime {
+				limitTime = s.gtime.modTime
 			}
 
 			s.mux.Unlock()
 		} else {
-			limitTime = s.timeMod
+			limitTime = s.gtime.modTime
 		}
 
 		if s.timeLocal < limitTime {
@@ -657,3 +659,5 @@ func (s *Simulator) run() {
 
 	log.Printf("%s has finished simulation\n", s.name)
 }
+
+func (s *Simulator) doT() {}
