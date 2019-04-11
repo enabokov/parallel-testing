@@ -12,6 +12,7 @@ import (
 )
 
 type Simulator struct {
+	Gcounter  *GlobalCounter
 	Gtime     *GlobalTime
 	TimeLocal float64
 	Name      string
@@ -34,7 +35,8 @@ type Simulator struct {
 
 	StatisticsPlaces []Place
 
-	Mux sync.Mutex
+	Lock sync.RWMutex
+	Cond sync.Cond
 
 	PrevObj *Simulator
 	NextObj *Simulator
@@ -53,7 +55,7 @@ type Simulator struct {
 }
 
 type BuildSimulator interface {
-	Build(Net, *GlobalCounter, *GlobalTime) Simulator
+	Build(Net, *GlobalCounter, *GlobalTime, *GlobalLocker) *Simulator
 
 	GetEventMin() Transition
 	GetTimeExternalInput() []float64 // atomic
@@ -82,17 +84,25 @@ type BuildSimulator interface {
 	MoveTimeLocal(float64)
 	DoT()
 	Run()
+	PrintState()
+	PrintBuffer()
 }
 
-func (s *Simulator) Build(n Net, c *GlobalCounter, t *GlobalTime) Simulator {
+func (s *Simulator) Build(n Net, c *GlobalCounter, t *GlobalTime, cond *GlobalLocker) *Simulator {
 	s.TNet = n
 	s.Name = n.Name
-	s.NumObject = c.Simulator
-	c.Simulator++
+	s.Gcounter = c
+	//s.Locker = cond
+	s.Lock = sync.RWMutex{}
+	s.Cond = *sync.NewCond(&s.Lock)
+	//s.Locker.Cond = sync.NewCond(s)
+	s.InitNumObj()
+	s.IncrCounter()
 	s.Gtime = t
 	s.TimeLocal = s.Gtime.CurrentTime
 	s.TimeMin = math.MaxFloat64
-
+	s.Limit = 10
+	s.Counter = 0
 	copy(s.Places, n.Places[:])
 	copy(s.Transitions, n.Transitions[:])
 	copy(s.LinksIn, n.LinksIn[:])
@@ -103,7 +113,19 @@ func (s *Simulator) Build(n Net, c *GlobalCounter, t *GlobalTime) Simulator {
 
 	// WARNING READ SOME FILE
 
-	return *s
+	return s
+}
+
+func (s *Simulator) InitNumObj() {
+	s.Gcounter.Mux.Lock()
+	s.NumObject = s.Gcounter.Simulator
+	s.Gcounter.Mux.Unlock()
+}
+
+func (s *Simulator) IncrCounter() {
+	s.Gcounter.Mux.Lock()
+	s.Gcounter.Simulator++
+	s.Gcounter.Mux.Unlock()
 }
 
 func (s *Simulator) SetPriority(p int) BuildSimulator {
@@ -142,7 +164,7 @@ func (s *Simulator) ProcessEventMin() {
 func (s *Simulator) FindActiveTransition() []Transition {
 	var activeTransitions []Transition
 	for _, t := range s.Transitions {
-		if t.condition(s.Places) && t.Probability != 0 {
+		if t.Condition(s.Places) && t.Probability != 0 {
 			activeTransitions = append(activeTransitions, t)
 		}
 	}
@@ -171,11 +193,11 @@ func (s *Simulator) Step() {
 		log.Printf("[stop] in Net %s\n", s.Name)
 		s.TimeMin = s.Gtime.ModTime
 		for _, p := range s.Places {
-			p.setMean((s.TimeMin - s.Gtime.CurrentTime) / s.Gtime.ModTime)
+			p.SetMean((s.TimeMin - s.Gtime.CurrentTime) / s.Gtime.ModTime)
 		}
 
 		for _, t := range s.Transitions {
-			t.setMean((s.TimeMin - s.Gtime.CurrentTime) / s.Gtime.ModTime)
+			t.SetMean((s.TimeMin - s.Gtime.CurrentTime) / s.Gtime.ModTime)
 		}
 
 		// propagating time
@@ -186,7 +208,8 @@ func (s *Simulator) Step() {
 
 	for len(activeTransitions) > 0 {
 		// resolving conflicts
-		s.DoConflict(activeTransitions).actIn(s.Places, s.Gtime.CurrentTime)
+		tmpTransition := s.DoConflict(activeTransitions)
+		tmpTransition.ActIn(s.Places, s.Gtime.CurrentTime)
 
 		// refresh list of active transitions
 		activeTransitions = s.FindActiveTransition()
@@ -196,11 +219,11 @@ func (s *Simulator) Step() {
 	s.ProcessEventMin()
 
 	for _, p := range s.Places {
-		p.setMean((s.TimeMin - s.Gtime.CurrentTime) / s.Gtime.ModTime)
+		p.SetMean((s.TimeMin - s.Gtime.CurrentTime) / s.Gtime.ModTime)
 	}
 
 	for _, t := range s.Transitions {
-		t.setMean((s.TimeMin - s.Gtime.CurrentTime) / s.Gtime.ModTime)
+		t.SetMean((s.TimeMin - s.Gtime.CurrentTime) / s.Gtime.ModTime)
 	}
 
 	// propagate time
@@ -209,14 +232,14 @@ func (s *Simulator) Step() {
 	if s.Gtime.CurrentTime <= s.Gtime.ModTime {
 
 		// exit markers
-		s.EventMin.actOut(s.Places)
+		s.EventMin.ActOut(s.Places)
 
 		if s.EventMin.Buffer > 0 {
 			u := true
 			for u {
-				s.EventMin.minEvent()
+				s.EventMin.MinEvent()
 				if s.EventMin.MinTime == s.Gtime.CurrentTime {
-					s.EventMin.actOut(s.Places)
+					s.EventMin.ActOut(s.Places)
 				} else {
 					u = false
 				}
@@ -229,14 +252,14 @@ func (s *Simulator) Step() {
 			if t.Buffer > 0 && t.MinTime == s.Gtime.CurrentTime {
 
 				// exit markers from transition that responds to the closest time range
-				t.actOut(s.Places)
+				t.ActOut(s.Places)
 
 				if t.Buffer > 0 {
 					u := true
 					for u {
-						t.minEvent()
+						t.MinEvent()
 						if t.MinTime == s.Gtime.CurrentTime {
-							t.actOut(s.Places)
+							t.ActOut(s.Places)
 						} else {
 							u = false
 						}
@@ -312,7 +335,7 @@ func (s *Simulator) Input() {
 	} else {
 		for len(activeTransitions) > 0 {
 			t := s.DoConflict(activeTransitions)
-			t.actIn(s.Places, s.TimeLocal)
+			t.ActIn(s.Places, s.TimeLocal)
 			activeTransitions = s.FindActiveTransition()
 		}
 
@@ -329,30 +352,43 @@ func (s *Simulator) Output() {
 
 	for _, t := range s.Transitions {
 		if t.MinTime == s.TimeLocal && t.Buffer > 0 {
-			t.actOut(s.Places)
+			t.ActOut(s.Places)
 
 			if s.NextObj != nil && s.CheckIfOutTransitions(s.OutT, t) {
 				s.NextObj.AddTimeExternalInput(s.TimeLocal)
-				s.NextObj.Mux.Lock()
+				s.NextObj.Lock.RLock()
+				s.NextObj.Cond.Signal()
+				s.NextObj.Lock.RUnlock()
+
+				s.Lock.RLock()
 				for len(s.NextObj.TimeExternalInput) > s.Limit {
-					// wait until others
+					log.Println("Wait for others")
+					s.NextObj.Cond.Wait()
+					log.Println("Continue to processed further")
 				}
-				s.NextObj.Mux.Unlock()
+
+				s.NextObj.Lock.RUnlock()
 			}
 
 			if t.Buffer > 0 {
 				u := true
 				for u {
-					t.minEvent()
+					t.MinEvent()
 					if t.MinTime == s.TimeLocal {
-						t.actOut(s.Places)
+						t.ActOut(s.Places)
 						if s.NextObj != nil && s.CheckIfOutTransitions(s.OutT, t) {
 							s.NextObj.AddTimeExternalInput(s.TimeLocal)
-							s.NextObj.Mux.Lock()
+							s.NextObj.Lock.RLock()
 							for len(s.NextObj.TimeExternalInput) > s.Limit {
-								// wait until others
+								s.NextObj.Cond.Signal()
 							}
-							s.NextObj.Mux.Unlock()
+							s.NextObj.Lock.RUnlock()
+
+							s.Lock.RLock()
+							for len(s.NextObj.TimeExternalInput) > s.Limit {
+								s.Cond.Wait()
+							}
+							s.Lock.RUnlock()
 						}
 					} else {
 						u = false
@@ -376,12 +412,12 @@ func (s *Simulator) CheckIfOutTransitions(t []Transition, tofind Transition) boo
 
 func (s *Simulator) ReinstateActOut(p Place, t Transition) {
 	for _, l := range s.PrevObj.LinksOut {
-		if l.counterTransitions == t.Number && l.counterPlaces == p.Number {
-			p.incrMark(float64(l.kVariant))
+		if l.CounterTransitions == t.Number && l.CounterPlaces == p.Number {
+			p.IncrMark(float64(l.KVariant))
 			s.Counter++
 			break
 		} else {
-			log.Printf("%d == %d && %d == %d", l.counterTransitions, t.Number, l.counterPlaces, p.Number)
+			log.Printf("%d == %d && %d == %d", l.CounterTransitions, t.Number, l.CounterPlaces, p.Number)
 		}
 	}
 }
@@ -397,7 +433,7 @@ func (s *Simulator) StepEvent() {
 
 func (s *Simulator) IsStop() bool {
 	for _, t := range s.Transitions {
-		if t.condition(s.Places) {
+		if t.Condition(s.Places) {
 			return false
 		}
 		if t.Buffer > 0 {
@@ -422,22 +458,22 @@ func (s *Simulator) IsStop() bool {
 
 func (s *Simulator) DoStatistics() {
 	for _, p := range s.Places {
-		p.setMean((s.TimeMin - s.Gtime.CurrentTime) / s.Gtime.ModTime)
+		p.SetMean((s.TimeMin - s.Gtime.CurrentTime) / s.Gtime.ModTime)
 	}
 
 	for _, t := range s.Transitions {
-		t.setMean((s.TimeMin - s.Gtime.CurrentTime) / s.Gtime.ModTime)
+		t.SetMean((s.TimeMin - s.Gtime.CurrentTime) / s.Gtime.ModTime)
 	}
 }
 
 func (s *Simulator) DoStatisticsWithInterval(interval float64) {
 	if interval > 0 {
 		for _, p := range s.StatisticsPlaces {
-			p.setMean(interval)
+			p.SetMean(interval)
 		}
 
 		for _, t := range s.Transitions {
-			t.setMean(interval)
+			t.SetMean(interval)
 		}
 	}
 }
@@ -465,9 +501,9 @@ func (s *Simulator) Goo() {
 }
 
 func (s *Simulator) AddTimeExternalInput(t float64) {
-	s.Mux.Lock()
+	s.Lock.RLocker()
 	s.NextObj.TimeExternalInput = append(s.NextObj.TimeExternalInput, s.TimeLocal)
-	s.Mux.Unlock()
+	s.Lock.RUnlock()
 }
 
 func (s *Simulator) IsStopSerial() bool {
@@ -478,9 +514,11 @@ func (s *Simulator) IsStopSerial() bool {
 func (s *Simulator) GoUntilConference(limitTime float64) {
 	limit := float64(s.Limit)
 	for s.TimeLocal < limit {
-		//for s.IsStop() {
-		//	s.Mux.Lock()
-		//}
+		for s.IsStop() {
+			s.Lock.RLock()
+			s.Cond.Wait()
+			s.Lock.RUnlock()
+		}
 
 		s.Input()
 		if s.TimeMin < limit {
@@ -504,51 +542,54 @@ func (s *Simulator) GoUntilConference(limitTime float64) {
 
 			if limit >= s.Gtime.ModTime {
 				if s.NextObj != nil {
-					s.NextObj.Mux.Lock()
+					s.NextObj.Lock.RLock()
+					// not expect event from outside
 					s.NextObj.AddTimeExternalInput(math.MaxFloat64)
-					s.NextObj.Mux.Unlock()
+					s.NextObj.Cond.Signal()
+					s.NextObj.Lock.RUnlock()
 				}
 			}
 
 			if s.PrevObj != nil {
 				for len(s.TimeExternalInput) == 0 {
-					s.Mux.Lock()
-					// check and await
-					s.Mux.Unlock()
+					s.Lock.RLock()
+					s.Cond.Wait()
+					s.Lock.RUnlock()
 				}
 			}
 
 			if s.TimeExternalInput[0] > s.Gtime.ModTime {
 				if s.NextObj != nil {
-					s.NextObj.Mux.Lock()
+					s.NextObj.Lock.RLock()
 					s.NextObj.AddTimeExternalInput(math.MaxFloat64)
-					s.NextObj.Mux.Unlock()
+					s.NextObj.Cond.Signal()
+					s.NextObj.Lock.RUnlock()
 				}
 			} else if s.TimeExternalInput[0] == s.TimeLocal {
 				s.ReinstateActOut(s.PrevObj.Places[len(s.PrevObj.Places)-1], s.PrevObj.OutT[0])
-				s.Mux.Lock()
+				s.Lock.RLock()
 				s.TimeExternalInput = s.TimeExternalInput[1:]
-				s.Mux.Unlock()
+				s.Lock.RUnlock()
 
 				if len(s.TimeExternalInput) <= s.Limit {
-					s.PrevObj.Mux.Lock()
-					// lock condition
-					s.PrevObj.Mux.Unlock()
+					s.PrevObj.Lock.RLock()
+					s.PrevObj.Cond.Signal()
+					s.PrevObj.Lock.RUnlock()
 				}
 
 				for len(s.TimeExternalInput) == 0 {
-					s.Mux.Lock()
-					// lock condition
-					s.Mux.Unlock()
+					s.Lock.RLock()
+					s.Cond.Wait()
+					s.Lock.RUnlock()
 				}
 
 				if len(s.TimeExternalInput) > 0 {
 					if s.TimeExternalInput[0] > s.Gtime.ModTime {
 						if s.NextObj != nil {
-							s.NextObj.Mux.Lock()
+							s.NextObj.Lock.RLock()
 							s.NextObj.AddTimeExternalInput(math.MaxFloat64)
-							// lock condition
-							s.NextObj.Mux.Unlock()
+							s.NextObj.Cond.Signal()
+							s.NextObj.Lock.RUnlock()
 						}
 					} else {
 						if s.TimeExternalInput[len(s.TimeExternalInput)-1] < math.MaxFloat64 {
@@ -573,12 +614,12 @@ func (s *Simulator) GoUntil(limitTime float64) {
 
 	// propagate time within interval range
 	for s.TimeLocal < limit {
-		// checking precondition start Input
+		// checking preCondition start Input
 		for s.IsStop() {
 			log.Printf("%s is waiting for Input...\n", s.Name)
-			s.Mux.Lock()
-			// lock condition
-			s.Mux.Unlock()
+			s.Lock.RLock()
+			s.Cond.Wait()
+			s.Lock.RUnlock()
 		}
 
 		// timeMin changed
@@ -591,38 +632,39 @@ func (s *Simulator) GoUntil(limitTime float64) {
 			if limit >= s.Gtime.ModTime {
 				s.MoveTimeLocal(s.Gtime.ModTime)
 				if s.NextObj != nil {
-					s.NextObj.Mux.Lock()
+					s.NextObj.Lock.RLock()
 					s.NextObj.AddTimeExternalInput(math.MaxFloat64)
-					// lock condition
-					s.NextObj.Mux.Unlock()
+					s.NextObj.Cond.Signal()
+					s.NextObj.Lock.RUnlock()
 				}
 			} else {
 				if s.PrevObj != nil {
 					if len(s.TimeExternalInput) == 0 || s.TimeExternalInput[len(s.TimeExternalInput)-1] < math.MaxFloat64 {
 						for len(s.TimeExternalInput) == 0 {
-							s.Mux.Lock()
-							// cond lock
-							s.Mux.Unlock()
+							s.Lock.RLock()
+							s.Cond.Wait()
+							s.Lock.RUnlock()
 						}
 					}
 
 					if s.TimeExternalInput[0] > s.Gtime.ModTime {
 						s.MoveTimeLocal(s.Gtime.ModTime)
 						if s.NextObj != nil {
-							s.NextObj.Mux.Lock()
-							// cond lock
-							s.NextObj.Mux.Unlock()
+							s.NextObj.Lock.RLock()
+							s.NextObj.AddTimeExternalInput(math.MaxFloat64)
+							s.NextObj.Cond.Signal()
+							s.NextObj.Lock.RUnlock()
 						} else {
 							s.MoveTimeLocal(limit)
 							s.ReinstateActOut(s.PrevObj.Places[len(s.PrevObj.Places)-1], s.PrevObj.OutT[0])
-							s.Mux.Lock()
+							s.Lock.RLock()
 							s.TimeExternalInput = s.TimeExternalInput[1:]
-							s.Mux.Unlock()
+							s.Lock.RUnlock()
 
 							if len(s.TimeExternalInput) <= s.Limit {
-								s.PrevObj.Mux.Lock()
-								// cond lock
-								s.PrevObj.Mux.Unlock()
+								s.PrevObj.Lock.RLock()
+								s.PrevObj.Cond.Signal()
+								s.PrevObj.Lock.RUnlock()
 							}
 						}
 					}
@@ -638,16 +680,20 @@ func (s *Simulator) Run() {
 	for s.TimeLocal < s.Gtime.ModTime {
 		limitTime := s.Gtime.ModTime
 		if s.PrevObj != nil {
-			s.Mux.Lock()
+			log.Printf("Lock: %s\n", s.Name)
+			s.Lock.RLock()
 			for len(s.TimeExternalInput) == 0 {
-				// lock cond
+				log.Printf("Wait: %s\n", s.Name)
+				s.Cond.Wait()
 			}
+
 			limitTime = s.TimeExternalInput[0]
 			if limitTime > s.Gtime.ModTime {
 				limitTime = s.Gtime.ModTime
 			}
 
-			s.Mux.Unlock()
+			log.Printf("Unlock: %s\n", s.Name)
+			s.Lock.RUnlock()
 		} else {
 			limitTime = s.Gtime.ModTime
 		}
@@ -662,6 +708,20 @@ func (s *Simulator) Run() {
 	}
 
 	log.Printf("%s has finished simulation\n", s.Name)
+	s.PrintState()
 }
 
 func (s *Simulator) DoT() {}
+
+func (s *Simulator) PrintState() {
+	s.PrintMark()
+	s.PrintBuffer()
+}
+
+func (s *Simulator) PrintBuffer() {
+	log.Printf("Buffer in Net %s: ", s.Name)
+	for _, t := range s.Transitions {
+		log.Printf("%d ", t.Buffer)
+	}
+	log.Println()
+}

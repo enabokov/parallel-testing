@@ -1,6 +1,8 @@
 package petri
 
-import "fmt"
+import (
+	"fmt"
+)
 
 type Net struct {
 	Name              string
@@ -17,17 +19,17 @@ type Net struct {
 
 type BuildNet interface {
 	Build(string, []Place, []Transition, []Linker, []Linker) Net
-	findPlaceByName(string) int
-	getCurrentMark(string) float64
-	getMeanMark(string) float64
-	getCurrentBuffer(string) int
-	getMeanBuffer(string) float64
+	FindPlaceByName(string) int
+	GetCurrentMark(string) float64
+	GetMeanMark(string) float64
+	GetCurrentBuffer(string) int
+	GetMeanBuffer(string) float64
 
-	printLinks()
+	PrintLinks()
 	PrintMark()
-	printBuffer()
+	PrintBuffer()
 
-	clone() BuildNet
+	Clone() BuildNet
 }
 
 func (n *Net) Build(name string, places []Place, transitions []Transition, linksIn []Linker, linksOut []Linker) Net {
@@ -35,24 +37,24 @@ func (n *Net) Build(name string, places []Place, transitions []Transition, links
 	n.CounterPlace = len(places)
 	n.CounterTransition = len(transitions)
 	n.CounterIn = len(linksIn)
-	n.CounterOut = len(LinksOut)
+	n.CounterOut = len(linksOut)
 
 	n.Places = places[:]
 	n.Transitions = transitions[:]
 	n.LinksIn = linksIn[:]
-	n.LinksOut = LinksOut[:]
+	n.LinksOut = linksOut[:]
 
 	for _, t := range n.Transitions {
-		t.createInPlaces(places, linksIn)
-		t.createOutPlaces(places, LinksOut)
+		t.CreateInPlaces(places, linksIn)
+		t.CreateOutPlaces(places, linksOut)
 	}
 
 	return *n
 }
 
-func (n *Net) findPlaceByName(placeName string) int {
+func (n *Net) FindPlaceByName(placeName string) int {
 	for i, place := range n.Places {
-		if placeName == place.getName() {
+		if placeName == place.GetName() {
 			return i
 		}
 	}
@@ -70,42 +72,42 @@ func (n *Net) findTransitionByName(transitionName string) int {
 	return -1
 }
 
-func (n *Net) getCurrentMark(placeName string) float64 {
-	return n.Places[n.findPlaceByName(placeName)].getMark()
+func (n *Net) GetCurrentMark(placeName string) float64 {
+	return n.Places[n.FindPlaceByName(placeName)].GetMark()
 }
 
-func (n *Net) getMeanMark(placeName string) float64 {
-	return n.Places[n.findPlaceByName(placeName)].getMean()
+func (n *Net) GetMeanMark(placeName string) float64 {
+	return n.Places[n.FindPlaceByName(placeName)].GetMean()
 }
 
-func (n *Net) getCurrentBuffer(transitionName string) int {
+func (n *Net) GetCurrentBuffer(transitionName string) int {
 	return n.Transitions[n.findTransitionByName(transitionName)].Buffer
 }
 
-func (n *Net) getMeanBuffer(transitionName string) float64 {
+func (n *Net) GetMeanBuffer(transitionName string) float64 {
 	return n.Transitions[n.findTransitionByName(transitionName)].Mean
 }
 
-func (n *Net) printLinks() {
+func (n *Net) PrintLinks() {
 	fmt.Printf("Petri net %s ties: %b Input links and %b Output links\n", n.Name, len(n.LinksIn), len(n.LinksOut))
 	for _, l := range n.LinksIn {
-		l.printInfo()
+		l.PrintInfo()
 	}
 
 	for _, l := range n.LinksOut {
-		l.printInfo()
+		l.PrintInfo()
 	}
 }
 
 func (n *Net) PrintMark() {
 	fmt.Printf("Mark in Net %s: ", n.Name)
 	for _, p := range n.Places {
-		fmt.Print(p.getMean())
+		fmt.Print(p.GetMean())
 	}
 	fmt.Println()
 }
 
-func (n *Net) printBuffer() {
+func (n *Net) PrintBuffer() {
 	fmt.Printf("Buffer in Net %s: ", n.Name)
 	for _, t := range n.Transitions {
 		fmt.Print(t.Buffer)
@@ -113,7 +115,7 @@ func (n *Net) printBuffer() {
 	fmt.Println()
 }
 
-func (n *Net) clone() BuildNet {
+func (n *Net) Clone() BuildNet {
 	var v Net
 	v = *n
 	v.Places = n.Places[:]

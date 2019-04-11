@@ -3,10 +3,11 @@ package petri
 import "fmt"
 
 type Place struct {
-	Mark   float64
-	Name   string
-	Number int
-	Mean   float64
+	Counter *GlobalCounter
+	Mark    float64
+	Name    string
+	Number  int
+	Mean    float64
 
 	ObservedMax float64
 	ObservedMin float64
@@ -17,62 +18,75 @@ type Place struct {
 type BuildPlace interface {
 	Build(name string, mark float64, c *GlobalCounter) Place
 
-	getMean() float64
-	setMean(float64) BuildPlace // synchronized
+	GetMean() float64
+	SetMean(float64) BuildPlace // synchronized
 
-	getMark() float64           // synchronized
-	setMark(float64) BuildPlace // synchronized
-	incrMark(float64)           // synchronized
-	decrMark(float64)           // synchronized
+	GetMark() float64           // synchronized
+	SetMark(float64) BuildPlace // synchronized
+	IncrMark(float64)           // synchronized
+	DecrMark(float64)           // synchronized
 
-	getObservedMax() float64
-	getObservedMin() float64
+	GetObservedMax() float64
+	GetObservedMin() float64
 
-	getName() string
-	setName(string) BuildPlace
+	GetName() string
+	SetName(string) BuildPlace
 
-	getNumber() int
-	setNumber(int) BuildPlace
+	GetNumber() int
+	SetNumber(int) BuildPlace
 
-	initNext(*GlobalCounter) BuildPlace
-	isExternal() bool
-	setExternal(bool) BuildPlace
+	InitNext(*GlobalCounter) BuildPlace
+	IsExternal() bool
+	SetExternal(bool) BuildPlace
 
-	print()
+	Print()
 
-	clone() BuildPlace
+	Clone() BuildPlace
 }
 
 func (p *Place) Build(name string, mark float64, c *GlobalCounter) Place {
 	p.Name = name
 	p.Mark = mark
 	p.Mean = 0
-	p.Number = c.Place
-	c.Place++
+	p.Counter = c
+	p.initNumber()
+	p.incr()
 	p.ObservedMax = mark
 	p.ObservedMin = mark
 	return *p
 }
 
-func (p *Place) getMean() float64 {
+func (p *Place) initNumber() {
+	p.Counter.Mux.Lock()
+	p.Number = p.Counter.Place
+	p.Counter.Mux.Unlock()
+}
+
+func (p *Place) incr() {
+	p.Counter.Mux.Lock()
+	p.Counter.Place++
+	p.Counter.Mux.Unlock()
+}
+
+func (p *Place) GetMean() float64 {
 	return p.Mean
 }
 
-func (p *Place) setMean(m float64) BuildPlace {
+func (p *Place) SetMean(m float64) BuildPlace {
 	p.Mean = p.Mean + (p.Mark-p.Mean)*m
 	return p
 }
 
-func (p *Place) getMark() float64 {
+func (p *Place) GetMark() float64 {
 	return p.Mark
 }
 
-func (p *Place) setMark(m float64) BuildPlace {
+func (p *Place) SetMark(m float64) BuildPlace {
 	p.Mark = m
 	return p
 }
 
-func (p *Place) incrMark(m float64) {
+func (p *Place) IncrMark(m float64) {
 	p.Mark += m
 	if p.ObservedMax < p.Mark {
 		p.ObservedMax = p.Mark
@@ -83,7 +97,7 @@ func (p *Place) incrMark(m float64) {
 	}
 }
 
-func (p *Place) decrMark(m float64) {
+func (p *Place) DecrMark(m float64) {
 	p.Mark -= m
 	if p.ObservedMax < p.Mark {
 		p.ObservedMax = p.Mark
@@ -94,51 +108,51 @@ func (p *Place) decrMark(m float64) {
 	}
 }
 
-func (p *Place) getObservedMax() float64 {
+func (p *Place) GetObservedMax() float64 {
 	return p.ObservedMax
 }
 
-func (p *Place) getObservedMin() float64 {
+func (p *Place) GetObservedMin() float64 {
 	return p.ObservedMin
 }
 
-func (p *Place) getName() string {
+func (p *Place) GetName() string {
 	return p.Name
 }
 
-func (p *Place) setName(n string) BuildPlace {
+func (p *Place) SetName(n string) BuildPlace {
 	p.Name = n
 	return p
 }
 
-func (p *Place) getNumber() int {
+func (p *Place) GetNumber() int {
 	return p.Number
 }
 
-func (p *Place) setNumber(n int) BuildPlace {
+func (p *Place) SetNumber(n int) BuildPlace {
 	p.Number = n
 	return p
 }
 
-func (p *Place) initNext(c *GlobalCounter) BuildPlace {
+func (p *Place) InitNext(c *GlobalCounter) BuildPlace {
 	c.Place = 0
 	return p
 }
 
-func (p *Place) isExternal() bool {
+func (p *Place) IsExternal() bool {
 	return p.External
 }
 
-func (p *Place) setExternal(e bool) BuildPlace {
+func (p *Place) SetExternal(e bool) BuildPlace {
 	p.External = e
 	return p
 }
 
-func (p *Place) print() {
+func (p *Place) Print() {
 	fmt.Printf("%+v", p)
 }
 
-func (p *Place) clone() BuildPlace {
+func (p *Place) Clone() BuildPlace {
 	var n Place
 	n = *p
 	return &n

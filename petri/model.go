@@ -9,7 +9,7 @@ import (
 
 type Model struct {
 	Gtime           *GlobalTime
-	Objects         []Simulator
+	Objects         []*Simulator
 	TimeMod         float64
 	T               float64
 	IsProtocolPrint bool
@@ -26,16 +26,18 @@ type BuildModel interface {
 	GoRun(float64)
 }
 
-func (m *Model) Build(s []Simulator) Model {
+func (m *Model) Build(s []*Simulator, gtime *GlobalTime) Model {
 	m.Objects = s
+	m.Gtime = gtime
 	return *m
 }
 
 func (m *Model) GetNextEventTime() float64 {
 	min := m.Objects[0].TimeMin
-	for _, m := range m.Objects {
-		if m.TimeMin < min {
-			min = m.TimeMin
+
+	for i := 0; i < len(m.Objects); i++ {
+		if m.Objects[i].TimeMin < min {
+			min = m.TimeMod
 		}
 	}
 
@@ -46,10 +48,11 @@ func (m *Model) ModelInput() {
 	m.SortObj(m.Objects)
 	var wg sync.WaitGroup
 
-	for _, obj := range m.Objects {
+	for i := 0; i < len(m.Objects); i++ {
 		wg.Add(1)
 		go func() {
-			obj.Input()
+			it := i
+			m.Objects[it].Input()
 			wg.Done()
 		}()
 	}
@@ -57,13 +60,13 @@ func (m *Model) ModelInput() {
 	wg.Wait()
 }
 
-func (m *Model) SortObj(s []Simulator) {
+func (m *Model) SortObj(s []*Simulator) {
 	sort.SliceStable(s, func(i, j int) bool {
 		return s[i].Priority < s[j].Priority
 	})
 }
 
-func (m *Model) ChooseObj(s []Simulator) Simulator {
+func (m *Model) ChooseObj(s []*Simulator) *Simulator {
 	var num int
 	var max int
 
@@ -97,28 +100,27 @@ func (m *Model) ParallelGo(timeModeling float64) {
 
 	if m.IsProtocolPrint {
 		log.Println("Start marking Objects:")
-		// print marks
+		// Print marks
 	}
 
-	var conflictObj []Simulator
+	var conflictObj []*Simulator
 	for m.T < timeModeling {
-		conflictObj = []Simulator{}
+		conflictObj = []*Simulator{}
 
-		// maybe conditions changed
+		// maybe Conditions changed
 		m.ModelInput()
 		if m.IsProtocolPrint {
 			log.Println("Enter markers into transitions")
-			// print marks
+			// Print marks
 		}
 
 		// search the closest event
 		min = m.GetNextEventTime()
 		if m.IsStatistics {
-			for _, obj := range m.Objects {
-
+			for i := 0; i < len(m.Objects); i++ {
 				// statistics within delta m.T
 				// statistics is collected only once for all common positions
-				obj.DoStatisticsWithInterval((min - m.T) / min)
+				m.Objects[i].DoStatisticsWithInterval((min - m.T) / min)
 			}
 		}
 
@@ -132,9 +134,9 @@ func (m *Model) ParallelGo(timeModeling float64) {
 		}
 
 		if m.T <= timeModeling {
-			for _, e := range m.Objects {
-				if m.T == e.TimeMin {
-					conflictObj = append(conflictObj, e)
+			for i := 0; i < len(m.Objects); i++ {
+				if m.T == m.Objects[i].TimeMin {
+					conflictObj = append(conflictObj, m.Objects[i])
 				}
 			}
 
@@ -157,7 +159,7 @@ func (m *Model) ParallelGo(timeModeling float64) {
 
 			if m.IsProtocolPrint {
 				log.Println("Exit from markers:")
-				// print markers
+				// Print markers
 			}
 		}
 
@@ -166,7 +168,9 @@ func (m *Model) ParallelGo(timeModeling float64) {
 }
 
 func (m *Model) GoRun(timeModeling float64) {
+	m.Gtime.Mux.Lock()
 	m.Gtime.ModTime = timeModeling
+	m.Gtime.Mux.Unlock()
 
 	m.T = 0.0
 	var min float64
@@ -182,9 +186,9 @@ func (m *Model) GoRun(timeModeling float64) {
 		}
 	}
 
-	var K []Simulator
+	var K []*Simulator
 	for m.T < timeModeling {
-		K = []Simulator{}
+		K = []*Simulator{}
 
 		min = m.GetNextEventTime()
 		if m.IsStatistics {
@@ -201,9 +205,9 @@ func (m *Model) GoRun(timeModeling float64) {
 		}
 
 		if m.T <= timeModeling {
-			for _, e := range m.Objects {
-				if m.T == e.TimeMin {
-					K = append(K, e)
+			for i := 0; i < len(m.Objects); i++ {
+				if m.T == m.Objects[i].TimeMin {
+					K = append(K, m.Objects[i])
 				}
 			}
 
@@ -260,7 +264,7 @@ func (m *Model) GoRun(timeModeling float64) {
 
 			m.SortObj(m.Objects)
 			for _, e := range m.Objects {
-				// check all conditions
+				// check all Conditions
 				e.Input()
 			}
 
