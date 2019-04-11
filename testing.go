@@ -7,7 +7,7 @@ import (
 	"sync"
 )
 
-func GetModelSMOGroupForTestParallel(numGroups int, numInGroup int, c *petri.GlobalCounter, gtime *petri.GlobalTime, cond *petri.GlobalLocker) *petri.Model {
+func GetModelSMOGroupForTestParallel(numGroups int, numInGroup int, c *petri.GlobalCounter, gtime *petri.GlobalTime, cond *petri.GlobalLocker, channel chan int) *petri.Model {
 	var list []*petri.Simulator
 	var counter *petri.GlobalCounter
 
@@ -16,14 +16,14 @@ func GetModelSMOGroupForTestParallel(numGroups int, numInGroup int, c *petri.Glo
 	numSMO := numGroups - 1
 	list = append(list,
 		(&petri.Simulator{}).Build(petri.CreateNetGenerator(2.0, 10, "norm", c),
-			c, gtime, cond),
+			c, gtime, cond, channel),
 	)
 	log.Printf("CREATED OBJECTS %+v\n", counter)
 	for i := 0; i < numSMO; i++ {
 		list = append(list,
 			(&petri.Simulator{}).Build(
 				petri.CreateNetSMOGroup(float64(numInGroup), 1, 1.0, fmt.Sprintf("group_%d", i), c),
-				c, gtime, cond),
+				c, gtime, cond, channel),
 		)
 	}
 

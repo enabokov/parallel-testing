@@ -13,10 +13,12 @@ func TestParallelObj(t *testing.T) {
 	var c petri.GlobalCounter
 	var cond petri.GlobalLocker
 
+	channel := make(chan int)
+
 	//cond.Cond = sync.NewCond(&cond.Mux)
 
 	numObj := 2
-	model := GetModelSMOGroupForTestParallel(numObj, 10, &c, &gtime, &cond)
+	model := GetModelSMOGroupForTestParallel(numObj, 10, &c, &gtime, &cond, channel)
 	timeModeling := 1000.0
 	model.GoRun(timeModeling)
 

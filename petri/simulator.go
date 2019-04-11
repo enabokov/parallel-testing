@@ -51,7 +51,7 @@ type Simulator struct {
 }
 
 type BuildSimulator interface {
-	Build(Net, *GlobalCounter, *GlobalTime, *GlobalLocker) *Simulator
+	Build(Net, *GlobalCounter, *GlobalTime, *GlobalLocker, chan int) *Simulator
 
 	GetEventMin() *Transition
 	GetTimeExternalInput() []float64 // atomic
@@ -84,11 +84,11 @@ type BuildSimulator interface {
 	PrintBuffer()
 }
 
-func (s *Simulator) Build(n Net, c *GlobalCounter, t *GlobalTime, cond *GlobalLocker) *Simulator {
+func (s *Simulator) Build(n Net, c *GlobalCounter, t *GlobalTime, cond *GlobalLocker, channel chan int) *Simulator {
 	s.TNet = n
 	s.Name = n.Name
 	s.Gcounter = c
-	s.Channel = make(chan int)
+	s.Channel = channel
 	s.InitNumObj()
 	s.IncrCounter()
 	s.Gtime = t

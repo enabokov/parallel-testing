@@ -13,13 +13,15 @@ func TestParallel(t *testing.T) {
 	var gtime petri.GlobalTime
 	var cond petri.GlobalLocker
 
+	channel := make(chan int)
+
 	//cond.Cond = sync.NewCond()
 
 	time := 100000.0
 	numObjects := 8
 
 	// sequence of 10 SMO groups and generator
-	model := GetModelSMOGroupForTestParallel(numObjects, 10, &c, &gtime, &cond)
+	model := GetModelSMOGroupForTestParallel(numObjects, 10, &c, &gtime, &cond, channel)
 	log.Printf("Quantity of objects %d \n quantity of positions in object %d\n", len(model.Objects), len(model.Objects[1].Places))
 	model.TimeMod = time
 	gtime.ModTime = time
