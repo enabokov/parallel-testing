@@ -75,6 +75,7 @@ func (t *Transition) Build(transitionName string, timeDelay float64, probability
 	t.MinTime = math.MaxFloat64
 	t.IMultiChannel = 0
 	t.Mean = 0
+	t.TimeModeling = math.MaxFloat64 - 1
 	t.ObservedMax = float64(t.Buffer)
 	t.ObservedMin = float64(t.Buffer)
 	t.Probability = probability
@@ -197,14 +198,14 @@ func (t *Transition) CreateInPlaces(places []*Place, links []*Linker) BuildTrans
 	t.InPlaces = t.InPlaces[:0]
 	t.CounterInPlaces = t.CounterInPlaces[:0]
 
-	for _, link := range links {
-		if link.CounterTransitions == t.Number {
-			if link.IsInfo() {
-				t.InPlacesWithInfo = append(t.InPlacesWithInfo, link.GetCounterPlaces())
-				t.CounterPlacesWithInfo = append(t.CounterPlacesWithInfo, link.GetQuantity())
+	for i := 0; i < len(links); i++ {
+		if links[i].CounterTransitions == t.Number {
+			if links[i].IsInfo() {
+				t.InPlacesWithInfo = append(t.InPlacesWithInfo, links[i].GetCounterPlaces())
+				t.CounterPlacesWithInfo = append(t.CounterPlacesWithInfo, links[i].GetQuantity())
 			} else {
-				t.InPlaces = append(t.InPlaces, link.GetCounterPlaces())
-				t.CounterInPlaces = append(t.CounterInPlaces, link.GetQuantity())
+				t.InPlaces = append(t.InPlaces, links[i].GetCounterPlaces())
+				t.CounterInPlaces = append(t.CounterInPlaces, links[i].GetQuantity())
 			}
 		}
 	}
@@ -220,10 +221,10 @@ func (t *Transition) CreateOutPlaces(places []*Place, links []*Linker) BuildTran
 	t.OutPlaces = t.OutPlaces[:0]
 	t.CounterOutPlaces = t.CounterOutPlaces[:0]
 
-	for _, link := range links {
-		if float64(link.GetCounterTransitions()) == t.AvgTimeServing {
-			t.OutPlaces = append(t.OutPlaces, link.GetCounterPlaces())
-			t.CounterOutPlaces = append(t.CounterOutPlaces, link.GetQuantity())
+	for i := 0; i < len(links); i++ {
+		if float64(links[i].GetCounterTransitions()) == t.AvgTimeServing {
+			t.OutPlaces = append(t.OutPlaces, links[i].GetCounterPlaces())
+			t.CounterOutPlaces = append(t.CounterOutPlaces, links[i].GetQuantity())
 		}
 	}
 
@@ -238,15 +239,15 @@ func (t *Transition) Condition(places []*Place) bool {
 	var a = true
 	var b = true
 
-	for i, place := range t.InPlaces {
-		if places[place].GetMark() < float64(t.CounterInPlaces[i]) {
+	for i := 0; i < len(t.InPlaces); i++ {
+		if places[t.InPlaces[i]].GetMark() < float64(t.CounterInPlaces[i]) {
 			a = false
 			break
 		}
 	}
 
-	for i, place := range t.InPlacesWithInfo {
-		if places[place].GetMark() < float64(t.CounterPlacesWithInfo[i]) {
+	for i := 0; i < len(t.InPlacesWithInfo); i++ {
+		if places[t.InPlacesWithInfo[i]].GetMark() < float64(t.CounterPlacesWithInfo[i]) {
 			b = false
 			break
 		}
@@ -257,8 +258,8 @@ func (t *Transition) Condition(places []*Place) bool {
 
 func (t *Transition) ActIn(places []*Place, currentTime float64) BuildTransition {
 	if t.Condition(places) {
-		for i, place := range t.InPlaces {
-			places[place].DecrMark(float64(t.CounterInPlaces[i]))
+		for i := 0; i < len(t.InPlaces); i++ {
+			places[t.InPlaces[i]].DecrMark(float64(t.CounterInPlaces[i]))
 		}
 
 		if t.Buffer == 0 {
@@ -283,9 +284,9 @@ func (t *Transition) ActIn(places []*Place, currentTime float64) BuildTransition
 
 func (t *Transition) ActOut(places []*Place) BuildTransition {
 	if t.Buffer > 0 {
-		for i, place := range t.OutPlaces {
-			if !places[place].IsExternal() {
-				places[place].IncrMark(float64(t.CounterOutPlaces[i]))
+		for i := 0; i < len(t.OutPlaces); i++ {
+			if !places[t.OutPlaces[i]].IsExternal() {
+				places[t.OutPlaces[i]].IncrMark(float64(t.CounterOutPlaces[i]))
 			}
 		}
 
@@ -308,8 +309,8 @@ func (t *Transition) ActOut(places []*Place) BuildTransition {
 func (t *Transition) MinEvent() BuildTransition {
 	var minTime = math.MaxFloat64
 	if len(t.Timeout) > 0 {
-		for i, timeout := range t.Timeout {
-			if timeout < minTime {
+		for i := 0; i < len(t.Timeout); i++ {
+			if t.Timeout[i] < minTime {
 				minTime = t.Timeout[i]
 				t.IMultiChannel = i
 			}

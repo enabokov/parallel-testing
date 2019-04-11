@@ -51,6 +51,7 @@ func (p *Place) Build(name string, mark float64, c *GlobalCounter) *Place {
 	p.Counter = c
 	p.initNumber()
 	p.incr()
+	p.Number = p.Counter.Place
 	p.ObservedMax = mark
 	p.ObservedMin = mark
 	return p

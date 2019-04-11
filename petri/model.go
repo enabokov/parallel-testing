@@ -2,6 +2,7 @@ package petri
 
 import (
 	"log"
+	"math"
 	"math/rand"
 	"sort"
 	"sync"
@@ -17,19 +18,22 @@ type Model struct {
 }
 
 type BuildModel interface {
-	Build([]Simulator) Model
+	Build([]Simulator) *Model
 	GetNextEventTime() float64
 	ModelInput()
-	SortObj([]Simulator)
-	ChooseObj([]Simulator) Simulator
+	SortObj([]*Simulator)
+	ChooseObj([]*Simulator) *Simulator
 	ParallelGo(float64)
 	GoRun(float64)
 }
 
-func (m *Model) Build(s []*Simulator, gtime *GlobalTime) Model {
+func (m *Model) Build(s []*Simulator, gtime *GlobalTime) *Model {
 	m.Objects = s
 	m.Gtime = gtime
-	return *m
+	m.TimeMod = math.MaxFloat64 - 1
+	m.IsProtocolPrint = true
+	m.IsStatistics = true
+	return m
 }
 
 func (m *Model) GetNextEventTime() float64 {
@@ -50,9 +54,9 @@ func (m *Model) ModelInput() {
 
 	for i := 0; i < len(m.Objects); i++ {
 		wg.Add(1)
+		obj := m.Objects[i]
 		go func() {
-			it := i
-			m.Objects[it].Input()
+			obj.Input()
 			wg.Done()
 		}()
 	}
@@ -176,13 +180,14 @@ func (m *Model) GoRun(timeModeling float64) {
 	var min float64
 
 	m.SortObj(m.Objects)
-	for _, e := range m.Objects {
-		e.Input()
+
+	for i := 0; i < len(m.Objects); i++ {
+		m.Objects[i].Input()
 	}
 
 	if m.IsProtocolPrint {
-		for _, e := range m.Objects {
-			e.PrintMark()
+		for i := 0; i < len(m.Objects); i++ {
+			m.Objects[i].PrintMark()
 		}
 	}
 
@@ -192,11 +197,12 @@ func (m *Model) GoRun(timeModeling float64) {
 
 		min = m.GetNextEventTime()
 		if m.IsStatistics {
-			for _, e := range m.Objects {
-				e.DoStatisticsWithInterval((min - m.T) / min)
+			for i := 0; i < len(m.Objects); i++ {
+				m.Objects[i].DoStatisticsWithInterval((min - m.T) / min)
 			}
 		}
 
+		// time forward
 		m.T = min
 		m.Gtime.CurrentTime = m.T
 
@@ -245,33 +251,35 @@ func (m *Model) GoRun(timeModeling float64) {
 				log.Printf("Chosen object %s -- next event\n", K[num].Name)
 			}
 
-			for _, e := range m.Objects {
-				if e.NumObject == K[num].NumObject {
+			for i := 0; i < len(m.Objects); i++ {
+				if m.Objects[i].NumObject == K[num].NumObject {
 					if m.IsProtocolPrint {
-						log.Printf("time: %f -- event %s starts for object %s\n", m.T, e.GetEventMin().Name, e.Name)
+						log.Printf(
+							"time: %f -- event %s starts for object %s\n",
+							m.T, m.Objects[i].GetEventMin().Name, m.Objects[i].Name)
 					}
-					e.DoT()
-					e.StepEvent()
+					m.Objects[i].DoT()
+					m.Objects[i].StepEvent()
 				}
 			}
 
 			if m.IsProtocolPrint {
 				log.Println("Exit markers from transitions")
-				for _, e := range m.Objects {
-					e.PrintMark()
+				for i := 0; i < len(m.Objects); i++ {
+					m.Objects[i].PrintMark()
 				}
 			}
 
 			m.SortObj(m.Objects)
-			for _, e := range m.Objects {
+			for i := 0; i < len(m.Objects); i++ {
 				// check all Conditions
-				e.Input()
+				m.Objects[i].Input()
 			}
 
 			if m.IsProtocolPrint {
 				log.Println("Enter markers into transitions")
-				for _, e := range m.Objects {
-					e.PrintMark()
+				for i := 0; i < len(m.Objects); i++ {
+					m.Objects[i].PrintMark()
 				}
 			}
 		}

@@ -88,7 +88,7 @@ func (s *Simulator) Build(n Net, c *GlobalCounter, t *GlobalTime, cond *GlobalLo
 	s.TNet = n
 	s.Name = n.Name
 	s.Gcounter = c
-	s.Channel = make(chan int)
+	s.Channel = make(chan int, 3)
 	s.InitNumObj()
 	s.IncrCounter()
 	s.Gtime = t
@@ -186,12 +186,12 @@ func (s *Simulator) Step() {
 	if (len(activeTransitions) == 0 && s.IsBufferEmpty()) || (s.Gtime.CurrentTime >= s.Gtime.ModTime) {
 		log.Printf("[stop] in Net %s\n", s.Name)
 		s.TimeMin = s.Gtime.ModTime
-		for _, p := range s.Places {
-			p.SetMean((s.TimeMin - s.Gtime.CurrentTime) / s.Gtime.ModTime)
+		for i := 0; i < len(s.Places); i++ {
+			s.Places[i].SetMean((s.TimeMin - s.Gtime.CurrentTime) / s.Gtime.ModTime)
 		}
 
-		for _, t := range s.Transitions {
-			t.SetMean((s.TimeMin - s.Gtime.CurrentTime) / s.Gtime.ModTime)
+		for i := 0; i < len(s.Transitions); i++ {
+			s.Transitions[i].SetMean((s.TimeMin - s.Gtime.CurrentTime) / s.Gtime.ModTime)
 		}
 
 		// propagating time
@@ -212,12 +212,12 @@ func (s *Simulator) Step() {
 	// find the closest event and its time
 	s.ProcessEventMin()
 
-	for _, p := range s.Places {
-		p.SetMean((s.TimeMin - s.Gtime.CurrentTime) / s.Gtime.ModTime)
+	for i := 0; i < len(s.Places); i++ {
+		s.Places[i].SetMean((s.TimeMin - s.Gtime.CurrentTime) / s.Gtime.ModTime)
 	}
 
-	for _, t := range s.Transitions {
-		t.SetMean((s.TimeMin - s.Gtime.CurrentTime) / s.Gtime.ModTime)
+	for i := 0; i < len(s.Transitions); i++ {
+		s.Transitions[i].SetMean((s.TimeMin - s.Gtime.CurrentTime) / s.Gtime.ModTime)
 	}
 
 	// propagate time
@@ -242,18 +242,18 @@ func (s *Simulator) Step() {
 
 		// WARNING: Output from all transitions
 		// time of out markers == current time
-		for _, t := range s.Transitions {
-			if t.Buffer > 0 && t.MinTime == s.Gtime.CurrentTime {
+		for i := 0; i < len(s.Transitions); i++ {
+			if s.Transitions[i].Buffer > 0 && s.Transitions[i].MinTime == s.Gtime.CurrentTime {
 
 				// exit markers from transition that responds to the closest time range
-				t.ActOut(s.Places)
+				s.Transitions[i].ActOut(s.Places)
 
-				if t.Buffer > 0 {
+				if s.Transitions[i].Buffer > 0 {
 					u := true
 					for u {
-						t.MinEvent()
-						if t.MinTime == s.Gtime.CurrentTime {
-							t.ActOut(s.Places)
+						s.Transitions[i].MinEvent()
+						if s.Transitions[i].MinTime == s.Gtime.CurrentTime {
+							s.Transitions[i].ActOut(s.Places)
 						} else {
 							u = false
 						}
@@ -303,8 +303,8 @@ func (s *Simulator) DoConflict(t []*Transition) *Transition {
 
 func (s *Simulator) IsBufferEmpty() bool {
 	c := true
-	for _, t := range s.Transitions {
-		if t.Buffer > 0 {
+	for i := 0; i < len(s.Transitions); i++ {
+		if s.Transitions[i].Buffer > 0 {
 			c = false
 			break
 		}
@@ -315,8 +315,8 @@ func (s *Simulator) IsBufferEmpty() bool {
 
 func (s *Simulator) PrintMark() {
 	log.Printf("Mark in Net %s\n", s.Name)
-	for _, p := range s.Places {
-		log.Printf("- %f -", p.Mark)
+	for i := 0; i < len(s.Places); i++ {
+		log.Printf("- %f -", s.Places[i].Mark)
 	}
 
 	log.Println()
@@ -344,11 +344,11 @@ func (s *Simulator) Output() {
 		externalPlace.External = true
 	}
 
-	for _, t := range s.Transitions {
-		if t.MinTime == s.TimeLocal && t.Buffer > 0 {
-			t.ActOut(s.Places)
+	for i := 0; i < len(s.Transitions); i++ {
+		if s.Transitions[i].MinTime == s.TimeLocal && s.Transitions[i].Buffer > 0 {
+			s.Transitions[i].ActOut(s.Places)
 
-			if s.NextObj != nil && s.CheckIfOutTransitions(s.OutT, t) {
+			if s.NextObj != nil && s.CheckIfOutTransitions(s.OutT, s.Transitions[i]) {
 				s.NextObj.AddTimeExternalInput(s.TimeLocal)
 				s.NextObj.Channel <- 1
 
@@ -359,13 +359,13 @@ func (s *Simulator) Output() {
 				}
 			}
 
-			if t.Buffer > 0 {
+			if s.Transitions[i].Buffer > 0 {
 				u := true
 				for u {
-					t.MinEvent()
-					if t.MinTime == s.TimeLocal {
-						t.ActOut(s.Places)
-						if s.NextObj != nil && s.CheckIfOutTransitions(s.OutT, t) {
+					s.Transitions[i].MinEvent()
+					if s.Transitions[i].MinTime == s.TimeLocal {
+						s.Transitions[i].ActOut(s.Places)
+						if s.NextObj != nil && s.CheckIfOutTransitions(s.OutT, s.Transitions[i]) {
 							s.NextObj.AddTimeExternalInput(s.TimeLocal)
 							for len(s.NextObj.TimeExternalInput) > s.Limit {
 								s.NextObj.Channel <- 1
@@ -396,13 +396,13 @@ func (s *Simulator) CheckIfOutTransitions(t []*Transition, tofind *Transition) b
 }
 
 func (s *Simulator) ReinstateActOut(p *Place, t *Transition) {
-	for _, l := range s.PrevObj.LinksOut {
-		if l.CounterTransitions == t.Number && l.CounterPlaces == p.Number {
-			p.IncrMark(float64(l.KVariant))
+	for i := 0; i < len(s.PrevObj.LinksOut); i++ {
+		if s.PrevObj.LinksOut[i].CounterTransitions == t.Number && s.PrevObj.LinksOut[i].CounterPlaces == p.Number {
+			p.IncrMark(float64(s.PrevObj.LinksOut[i].KVariant))
 			s.Counter++
 			break
 		} else {
-			log.Printf("%d == %d && %d == %d", l.CounterTransitions, t.Number, l.CounterPlaces, p.Number)
+			log.Printf("%d == %d && %d == %d", s.PrevObj.LinksOut[i].CounterTransitions, t.Number, s.PrevObj.LinksOut[i].CounterPlaces, p.Number)
 		}
 	}
 }
@@ -417,11 +417,11 @@ func (s *Simulator) StepEvent() {
 }
 
 func (s *Simulator) IsStop() bool {
-	for _, t := range s.Transitions {
-		if t.Condition(s.Places) {
+	for i := 0; i < len(s.Transitions); i++ {
+		if s.Transitions[i].Condition(s.Places) {
 			return false
 		}
-		if t.Buffer > 0 {
+		if s.Transitions[i].Buffer > 0 {
 			return false
 		}
 	}
@@ -442,23 +442,23 @@ func (s *Simulator) IsStop() bool {
 }
 
 func (s *Simulator) DoStatistics() {
-	for _, p := range s.Places {
-		p.SetMean((s.TimeMin - s.Gtime.CurrentTime) / s.Gtime.ModTime)
+	for i := 0; i < len(s.Places); i++ {
+		s.Places[i].SetMean((s.TimeMin - s.Gtime.CurrentTime) / s.Gtime.ModTime)
 	}
 
-	for _, t := range s.Transitions {
-		t.SetMean((s.TimeMin - s.Gtime.CurrentTime) / s.Gtime.ModTime)
+	for i := 0; i < len(s.Transitions); i++ {
+		s.Transitions[i].SetMean((s.TimeMin - s.Gtime.CurrentTime) / s.Gtime.ModTime)
 	}
 }
 
 func (s *Simulator) DoStatisticsWithInterval(interval float64) {
 	if interval > 0 {
-		for _, p := range s.StatisticsPlaces {
-			p.SetMean(interval)
+		for i := 0; i < len(s.StatisticsPlaces); i++ {
+			s.StatisticsPlaces[i].SetMean(interval)
 		}
 
-		for _, t := range s.Transitions {
-			t.SetMean(interval)
+		for i := 0; i < len(s.Transitions); i++ {
+			s.Transitions[i].SetMean(interval)
 		}
 	}
 }

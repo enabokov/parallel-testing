@@ -22,12 +22,13 @@ func TestParallelObj(t *testing.T) {
 
 	var wg sync.WaitGroup
 	log.Printf("Start %d goroutines\n", len(model.Objects))
-	for _, e := range model.Objects {
+	for i := 0; i < len(model.Objects); i++ {
 		wg.Add(1)
+		obj := model.Objects[i]
 		go func() {
-			if strings.ToLower(e.Name) == "smowithoutqueue" {
-				for i := 0; i < len(e.TNet.Places)/2; i++ {
-					log.Printf("mean queue in SMO %d %f", e.NumObject-1, e.TNet.Places[2*i].GetMean())
+			if strings.ToLower(obj.Name) == "smowithoutqueue" {
+				for i := 0; i < len(obj.TNet.Places)/2; i++ {
+					log.Printf("mean queue in SMO %d %f", obj.NumObject-1, obj.TNet.Places[2*i].GetMean())
 				}
 			}
 			wg.Done()

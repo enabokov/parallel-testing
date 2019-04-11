@@ -4,7 +4,8 @@ import "sync"
 
 type GlobalCounter struct {
 	sync.Mutex
-	Link       int
+	LinkIn     int
+	LinkOut    int
 	Place      int
 	Transition int
 	Simulator  int

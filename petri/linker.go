@@ -17,10 +17,11 @@ type Linker struct {
 	Info     bool
 
 	Number int
+	Label  string
 }
 
 type BuildLink interface {
-	Build(place *Place, transition *Transition, kVariant int, IsInfo bool, c *GlobalCounter) *Linker
+	Build(place *Place, transition *Transition, kVariant int, IsInfo bool, c *GlobalCounter, label string) *Linker
 
 	GetQuantity() int
 	SetQuantity(int) BuildLink
@@ -47,17 +48,33 @@ type BuildLink interface {
 	Clone() BuildLink
 }
 
-func (l *Linker) Build(place *Place, transition *Transition, kVariant int, info bool, c *GlobalCounter) *Linker {
+func (l *Linker) Build(place *Place, transition *Transition, kVariant int, info bool, c *GlobalCounter, label string) *Linker {
 	l.CounterPlaces = place.Number
 	l.CounterTransitions = transition.Number
 	l.KVariant = kVariant
 	l.Info = info
 	l.NamePlace = place.Name
 	l.NameTransition = transition.Name
-	l.Number = c.Link
+	l.Label = label
+
+	if label == `i` {
+		l.Number = c.LinkIn
+	} else if label == `o` {
+		l.Number = c.LinkOut
+	}
 	l.Counter = c
-	c.Link++
+	l.incr()
 	return l
+}
+
+func (l *Linker) incr() {
+	l.Counter.Lock()
+	if l.Label == `i` {
+		l.Counter.LinkIn++
+	} else if l.Label == `o` {
+		l.Counter.LinkOut++
+	}
+	l.Counter.Unlock()
 }
 
 func (l *Linker) GetQuantity() int {
@@ -106,7 +123,11 @@ func (l *Linker) SetCounterTransitions(c int) BuildLink {
 }
 
 func (l *Linker) InitNext(c *GlobalCounter) BuildLink {
-	c.Link = 0
+	if l.Label == "i" {
+		c.LinkIn = 0
+	} else {
+		c.LinkOut = 0
+	}
 	return l
 }
 
