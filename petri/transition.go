@@ -193,10 +193,10 @@ func (t *Transition) AddOutPlace(n int) BuildTransition {
 }
 
 func (t *Transition) CreateInPlaces(places []*Place, links []*Linker) BuildTransition {
-	t.InPlacesWithInfo = t.InPlacesWithInfo[:0]
-	t.CounterPlacesWithInfo = t.CounterPlacesWithInfo[:0]
-	t.InPlaces = t.InPlaces[:0]
-	t.CounterInPlaces = t.CounterInPlaces[:0]
+	t.InPlacesWithInfo = []int{}
+	t.CounterPlacesWithInfo = []int{}
+	t.InPlaces = []int{}
+	t.CounterInPlaces = []int{}
 
 	for i := 0; i < len(links); i++ {
 		if links[i].CounterTransitions == t.Number {
@@ -218,18 +218,18 @@ func (t *Transition) CreateInPlaces(places []*Place, links []*Linker) BuildTrans
 }
 
 func (t *Transition) CreateOutPlaces(places []*Place, links []*Linker) BuildTransition {
-	t.OutPlaces = t.OutPlaces[:0]
-	t.CounterOutPlaces = t.CounterOutPlaces[:0]
+	t.OutPlaces = []int{}
+	t.CounterOutPlaces = []int{}
 
 	for i := 0; i < len(links); i++ {
-		if float64(links[i].GetCounterTransitions()) == t.AvgTimeServing {
+		if links[i].CounterTransitions == t.Number {
 			t.OutPlaces = append(t.OutPlaces, links[i].GetCounterPlaces())
 			t.CounterOutPlaces = append(t.CounterOutPlaces, links[i].GetQuantity())
 		}
 	}
 
 	if len(t.OutPlaces) == 0 {
-		log.Println(fmt.Errorf("transition %s hasn't Input positions", t.Name))
+		log.Println(fmt.Errorf("transition %s hasn't output positions", t.Name))
 	}
 
 	return t
@@ -263,7 +263,6 @@ func (t *Transition) ActIn(places []*Place, currentTime float64) BuildTransition
 		}
 
 		if t.Buffer == 0 {
-			t.Timeout = make([]float64, 1)
 			t.Timeout[0] = currentTime + t.TimeServing
 		} else {
 			t.Timeout = append(t.Timeout, currentTime+t.TimeServing)
@@ -321,7 +320,9 @@ func (t *Transition) MinEvent() BuildTransition {
 }
 
 func (t *Transition) Print() {
-	fmt.Printf("%+v", t)
+	for i := 0; i < len(t.Timeout); i++ {
+		log.Printf("%f %s\n", t.Timeout[i], t.Name)
+	}
 }
 
 func (t *Transition) Clone() BuildTransition {

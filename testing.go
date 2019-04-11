@@ -8,7 +8,6 @@ import (
 )
 
 func GetModelSMOGroupForTestParallel(numGroups int, numInGroup int, c *petri.GlobalCounter, gtime *petri.GlobalTime, cond *petri.GlobalLocker) *petri.Model {
-	fmt.Println("Creating model SMO for parallel testing")
 	var list []*petri.Simulator
 	var counter *petri.GlobalCounter
 

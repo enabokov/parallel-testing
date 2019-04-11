@@ -1,6 +1,8 @@
 package petri
 
-import "fmt"
+import (
+	"log"
+)
 
 type Place struct {
 	Counter *GlobalCounter
@@ -74,7 +76,7 @@ func (p *Place) GetMean() float64 {
 }
 
 func (p *Place) SetMean(m float64) BuildPlace {
-	p.Mean = p.Mean + (p.Mark-p.Mean)*m
+	p.Mean += (p.Mark - p.Mean) * m
 	return p
 }
 
@@ -150,7 +152,7 @@ func (p *Place) SetExternal(e bool) BuildPlace {
 }
 
 func (p *Place) Print() {
-	fmt.Printf("%+v", p)
+	log.Printf("Place %s has such params:\n number: %d, mark: %f\n", p.Name, p.Number, p.Mark)
 }
 
 func (p *Place) Clone() BuildPlace {

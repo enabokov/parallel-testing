@@ -20,7 +20,7 @@ func TestParallel(t *testing.T) {
 
 	// sequence of 10 SMO groups and generator
 	model := GetModelSMOGroupForTestParallel(numObjects, 10, &c, &gtime, &cond)
-	log.Printf("Quantity of objects %d, quantity of positions in object %d", len(model.Objects), len(model.Objects[1].Places))
+	log.Printf("Quantity of objects %d \n quantity of positions in object %d\n", len(model.Objects), len(model.Objects[1].Places))
 	model.TimeMod = time
 	gtime.ModTime = time
 

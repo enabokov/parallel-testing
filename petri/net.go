@@ -2,7 +2,6 @@ package petri
 
 import (
 	"fmt"
-	"log"
 )
 
 type Net struct {
@@ -51,11 +50,11 @@ func (n *Net) Build(name string, places []*Place, transitions []*Transition, lin
 		n.Transitions[i].CreateOutPlaces(places, linksOut)
 
 		if len(n.Transitions[i].InPlaces) == 0 {
-			log.Println(fmt.Errorf("error: Transition %s has empty list of input places", n.Transitions[i].Name))
+			//log.Println(fmt.Errorf("error: Transition %s has empty list of input places", n.Transitions[i].Name))
 		}
 
 		if len(n.Transitions[i].OutPlaces) == 0 {
-			log.Println(fmt.Errorf("error: Transition %s has empty list of output places", n.Transitions[i].Name))
+			//log.Println(fmt.Errorf("error: Transition %s has empty list of output places", n.Transitions[i].Name))
 		}
 	}
 

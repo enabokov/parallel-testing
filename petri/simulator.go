@@ -88,7 +88,7 @@ func (s *Simulator) Build(n Net, c *GlobalCounter, t *GlobalTime, cond *GlobalLo
 	s.TNet = n
 	s.Name = n.Name
 	s.Gcounter = c
-	s.Channel = make(chan int, 3)
+	s.Channel = make(chan int)
 	s.InitNumObj()
 	s.IncrCounter()
 	s.Gtime = t
@@ -96,10 +96,10 @@ func (s *Simulator) Build(n Net, c *GlobalCounter, t *GlobalTime, cond *GlobalLo
 	s.TimeMin = math.MaxFloat64
 	s.Limit = 10
 	s.Counter = 0
-	s.Places = n.Places
-	copy(s.Transitions, n.Transitions[:])
-	copy(s.LinksIn, n.LinksIn[:])
-	copy(s.LinksOut, n.LinksOut[:])
+	copy(s.Places, n.Places)
+	copy(s.Transitions, n.Transitions)
+	copy(s.LinksIn, n.LinksIn)
+	copy(s.LinksOut, n.LinksOut)
 	s.EventMin = s.GetEventMin()
 	s.Priority = 0
 	copy(s.StatisticsPlaces, s.Places)
@@ -221,7 +221,9 @@ func (s *Simulator) Step() {
 	}
 
 	// propagate time
+	s.Gtime.Lock()
 	s.Gtime.CurrentTime = s.Gtime.ModTime
+	s.Gtime.Unlock()
 
 	if s.Gtime.CurrentTime <= s.Gtime.ModTime {
 
@@ -314,7 +316,7 @@ func (s *Simulator) IsBufferEmpty() bool {
 }
 
 func (s *Simulator) PrintMark() {
-	log.Printf("Mark in Net %s\n", s.Name)
+	log.Printf("Mark in Net %s", s.Name)
 	for i := 0; i < len(s.Places); i++ {
 		log.Printf("- %f -", s.Places[i].Mark)
 	}
@@ -367,10 +369,7 @@ func (s *Simulator) Output() {
 						s.Transitions[i].ActOut(s.Places)
 						if s.NextObj != nil && s.CheckIfOutTransitions(s.OutT, s.Transitions[i]) {
 							s.NextObj.AddTimeExternalInput(s.TimeLocal)
-							for len(s.NextObj.TimeExternalInput) > s.Limit {
-								s.NextObj.Channel <- 1
-							}
-
+							s.NextObj.Channel <- 1
 							for len(s.NextObj.TimeExternalInput) > s.Limit {
 								<-s.Channel
 							}
@@ -612,14 +611,14 @@ func (s *Simulator) GoUntil(limitTime float64) {
 						if s.NextObj != nil {
 							s.NextObj.AddTimeExternalInput(math.MaxFloat64)
 							s.NextObj.Channel <- 1
-						} else {
-							s.MoveTimeLocal(limit)
-							s.ReinstateActOut(s.PrevObj.Places[len(s.PrevObj.Places)-1], s.PrevObj.OutT[0])
-							s.TimeExternalInput = s.TimeExternalInput[1:]
+						}
+					} else {
+						s.MoveTimeLocal(limit)
+						s.ReinstateActOut(s.PrevObj.Places[len(s.PrevObj.Places)-1], s.PrevObj.OutT[0])
+						s.TimeExternalInput = s.TimeExternalInput[1:]
 
-							if len(s.TimeExternalInput) <= s.Limit {
-								s.PrevObj.Channel <- 1
-							}
+						if len(s.TimeExternalInput) <= s.Limit {
+							s.PrevObj.Channel <- 1
 						}
 					}
 				} else {
