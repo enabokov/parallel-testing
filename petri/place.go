@@ -57,15 +57,15 @@ func (p *Place) Build(name string, mark float64, c *GlobalCounter) *Place {
 }
 
 func (p *Place) initNumber() {
-	p.Counter.Mux.Lock()
+	p.Counter.Lock()
 	p.Number = p.Counter.Place
-	p.Counter.Mux.Unlock()
+	p.Counter.Unlock()
 }
 
 func (p *Place) incr() {
-	p.Counter.Mux.Lock()
+	p.Counter.Lock()
 	p.Counter.Place++
-	p.Counter.Mux.Unlock()
+	p.Counter.Unlock()
 }
 
 func (p *Place) GetMean() float64 {

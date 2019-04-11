@@ -31,15 +31,15 @@ func TestParallel(t *testing.T) {
 	log.Printf("Total %d\n", len(model.Objects))
 	for i := 0; i < len(model.Objects); i++ {
 		wg.Add(1)
-		log.Println(i)
+		tmp := model.Objects[i]
 		go func() {
-			model.Objects[i].Run()
-			wg.Done()
+			defer wg.Done()
+			tmp.Run()
 		}()
 	}
-
 	fmt.Println("Waiting for goroutines")
 	wg.Wait()
+	fmt.Println("DONE")
 
 	PrintResultsForAllObjects(model)
 

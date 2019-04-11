@@ -8,7 +8,6 @@ import (
 	"os"
 	"reflect"
 	"sort"
-	"sync"
 )
 
 type Simulator struct {
@@ -35,13 +34,10 @@ type Simulator struct {
 
 	StatisticsPlaces []*Place
 
-	Lock sync.RWMutex
-	Cond sync.Cond
+	Channel chan int
 
 	PrevObj *Simulator
 	NextObj *Simulator
-
-	// mutex locks
 
 	TimeExternalInput []float64
 	OutT              []*Transition
@@ -92,10 +88,7 @@ func (s *Simulator) Build(n Net, c *GlobalCounter, t *GlobalTime, cond *GlobalLo
 	s.TNet = n
 	s.Name = n.Name
 	s.Gcounter = c
-	//s.Locker = cond
-	s.Lock = sync.RWMutex{}
-	s.Cond = *sync.NewCond(&s.Lock)
-	//s.Locker.Cond = sync.NewCond(s)
+	s.Channel = make(chan int)
 	s.InitNumObj()
 	s.IncrCounter()
 	s.Gtime = t
@@ -117,15 +110,15 @@ func (s *Simulator) Build(n Net, c *GlobalCounter, t *GlobalTime, cond *GlobalLo
 }
 
 func (s *Simulator) InitNumObj() {
-	s.Gcounter.Mux.Lock()
+	s.Gcounter.Lock()
 	s.NumObject = s.Gcounter.Simulator
-	s.Gcounter.Mux.Unlock()
+	s.Gcounter.Unlock()
 }
 
 func (s *Simulator) IncrCounter() {
-	s.Gcounter.Mux.Lock()
+	s.Gcounter.Lock()
 	s.Gcounter.Simulator++
-	s.Gcounter.Mux.Unlock()
+	s.Gcounter.Unlock()
 }
 
 func (s *Simulator) SetPriority(p int) BuildSimulator {
@@ -357,18 +350,13 @@ func (s *Simulator) Output() {
 
 			if s.NextObj != nil && s.CheckIfOutTransitions(s.OutT, t) {
 				s.NextObj.AddTimeExternalInput(s.TimeLocal)
-				s.NextObj.Lock.RLock()
-				s.NextObj.Cond.Signal()
-				s.NextObj.Lock.RUnlock()
+				s.NextObj.Channel <- 1
 
-				s.Lock.RLock()
 				for len(s.NextObj.TimeExternalInput) > s.Limit {
 					log.Println("Wait for others")
-					s.NextObj.Cond.Wait()
+					<-s.NextObj.Channel
 					log.Println("Continue to processed further")
 				}
-
-				s.NextObj.Lock.RUnlock()
 			}
 
 			if t.Buffer > 0 {
@@ -379,17 +367,13 @@ func (s *Simulator) Output() {
 						t.ActOut(s.Places)
 						if s.NextObj != nil && s.CheckIfOutTransitions(s.OutT, t) {
 							s.NextObj.AddTimeExternalInput(s.TimeLocal)
-							s.NextObj.Lock.RLock()
 							for len(s.NextObj.TimeExternalInput) > s.Limit {
-								s.NextObj.Cond.Signal()
+								s.NextObj.Channel <- 1
 							}
-							s.NextObj.Lock.RUnlock()
 
-							s.Lock.RLock()
 							for len(s.NextObj.TimeExternalInput) > s.Limit {
-								s.Cond.Wait()
+								<-s.Channel
 							}
-							s.Lock.RUnlock()
 						}
 					} else {
 						u = false
@@ -502,9 +486,7 @@ func (s *Simulator) Goo() {
 }
 
 func (s *Simulator) AddTimeExternalInput(t float64) {
-	s.Lock.RLocker()
 	s.NextObj.TimeExternalInput = append(s.NextObj.TimeExternalInput, s.TimeLocal)
-	s.Lock.RUnlock()
 }
 
 func (s *Simulator) IsStopSerial() bool {
@@ -516,9 +498,7 @@ func (s *Simulator) GoUntilConference(limitTime float64) {
 	limit := float64(s.Limit)
 	for s.TimeLocal < limit {
 		for s.IsStop() {
-			s.Lock.RLock()
-			s.Cond.Wait()
-			s.Lock.RUnlock()
+			<-s.Channel
 		}
 
 		s.Input()
@@ -543,54 +523,39 @@ func (s *Simulator) GoUntilConference(limitTime float64) {
 
 			if limit >= s.Gtime.ModTime {
 				if s.NextObj != nil {
-					s.NextObj.Lock.RLock()
-					// not expect event from outside
 					s.NextObj.AddTimeExternalInput(math.MaxFloat64)
-					s.NextObj.Cond.Signal()
-					s.NextObj.Lock.RUnlock()
+					s.NextObj.Channel <- 1
 				}
 			}
 
 			if s.PrevObj != nil {
 				for len(s.TimeExternalInput) == 0 {
-					s.Lock.RLock()
-					s.Cond.Wait()
-					s.Lock.RUnlock()
+					<-s.Channel
 				}
 			}
 
 			if s.TimeExternalInput[0] > s.Gtime.ModTime {
 				if s.NextObj != nil {
-					s.NextObj.Lock.RLock()
 					s.NextObj.AddTimeExternalInput(math.MaxFloat64)
-					s.NextObj.Cond.Signal()
-					s.NextObj.Lock.RUnlock()
+					s.NextObj.Channel <- 1
 				}
 			} else if s.TimeExternalInput[0] == s.TimeLocal {
 				s.ReinstateActOut(s.PrevObj.Places[len(s.PrevObj.Places)-1], s.PrevObj.OutT[0])
-				s.Lock.RLock()
 				s.TimeExternalInput = s.TimeExternalInput[1:]
-				s.Lock.RUnlock()
 
 				if len(s.TimeExternalInput) <= s.Limit {
-					s.PrevObj.Lock.RLock()
-					s.PrevObj.Cond.Signal()
-					s.PrevObj.Lock.RUnlock()
+					s.PrevObj.Channel <- 1
 				}
 
 				for len(s.TimeExternalInput) == 0 {
-					s.Lock.RLock()
-					s.Cond.Wait()
-					s.Lock.RUnlock()
+					<-s.Channel
 				}
 
 				if len(s.TimeExternalInput) > 0 {
 					if s.TimeExternalInput[0] > s.Gtime.ModTime {
 						if s.NextObj != nil {
-							s.NextObj.Lock.RLock()
 							s.NextObj.AddTimeExternalInput(math.MaxFloat64)
-							s.NextObj.Cond.Signal()
-							s.NextObj.Lock.RUnlock()
+							s.NextObj.Channel <- 1
 						}
 					} else {
 						if s.TimeExternalInput[len(s.TimeExternalInput)-1] < math.MaxFloat64 {
@@ -618,9 +583,7 @@ func (s *Simulator) GoUntil(limitTime float64) {
 		// checking preCondition start Input
 		for s.IsStop() {
 			log.Printf("%s is waiting for Input...\n", s.Name)
-			s.Lock.RLock()
-			s.Cond.Wait()
-			s.Lock.RUnlock()
+			<-s.Channel
 		}
 
 		// timeMin changed
@@ -633,39 +596,29 @@ func (s *Simulator) GoUntil(limitTime float64) {
 			if limit >= s.Gtime.ModTime {
 				s.MoveTimeLocal(s.Gtime.ModTime)
 				if s.NextObj != nil {
-					s.NextObj.Lock.RLock()
 					s.NextObj.AddTimeExternalInput(math.MaxFloat64)
-					s.NextObj.Cond.Signal()
-					s.NextObj.Lock.RUnlock()
+					s.NextObj.Channel <- 1
 				}
 			} else {
 				if s.PrevObj != nil {
 					if len(s.TimeExternalInput) == 0 || s.TimeExternalInput[len(s.TimeExternalInput)-1] < math.MaxFloat64 {
 						for len(s.TimeExternalInput) == 0 {
-							s.Lock.RLock()
-							s.Cond.Wait()
-							s.Lock.RUnlock()
+							<-s.Channel
 						}
 					}
 
 					if s.TimeExternalInput[0] > s.Gtime.ModTime {
 						s.MoveTimeLocal(s.Gtime.ModTime)
 						if s.NextObj != nil {
-							s.NextObj.Lock.RLock()
 							s.NextObj.AddTimeExternalInput(math.MaxFloat64)
-							s.NextObj.Cond.Signal()
-							s.NextObj.Lock.RUnlock()
+							s.NextObj.Channel <- 1
 						} else {
 							s.MoveTimeLocal(limit)
 							s.ReinstateActOut(s.PrevObj.Places[len(s.PrevObj.Places)-1], s.PrevObj.OutT[0])
-							s.Lock.RLock()
 							s.TimeExternalInput = s.TimeExternalInput[1:]
-							s.Lock.RUnlock()
 
 							if len(s.TimeExternalInput) <= s.Limit {
-								s.PrevObj.Lock.RLock()
-								s.PrevObj.Cond.Signal()
-								s.PrevObj.Lock.RUnlock()
+								s.PrevObj.Channel <- 1
 							}
 						}
 					}
@@ -682,19 +635,18 @@ func (s *Simulator) Run() {
 		limitTime := s.Gtime.ModTime
 		if s.PrevObj != nil {
 			log.Printf("Lock: %s\n", s.Name)
-			s.Lock.RLock()
 			for len(s.TimeExternalInput) == 0 {
 				log.Printf("Wait: %s\n", s.Name)
-				s.Cond.Wait()
+				<-s.Channel
 			}
 
+			log.Println("Len", len(s.TimeExternalInput))
 			limitTime = s.TimeExternalInput[0]
 			if limitTime > s.Gtime.ModTime {
 				limitTime = s.Gtime.ModTime
 			}
 
 			log.Printf("Unlock: %s\n", s.Name)
-			s.Lock.RUnlock()
 		} else {
 			limitTime = s.Gtime.ModTime
 		}

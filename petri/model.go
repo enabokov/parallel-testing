@@ -168,9 +168,9 @@ func (m *Model) ParallelGo(timeModeling float64) {
 }
 
 func (m *Model) GoRun(timeModeling float64) {
-	m.Gtime.Mux.Lock()
+	m.Gtime.Lock()
 	m.Gtime.ModTime = timeModeling
-	m.Gtime.Mux.Unlock()
+	m.Gtime.Unlock()
 
 	m.T = 0.0
 	var min float64

@@ -3,7 +3,7 @@ package petri
 import "sync"
 
 type GlobalCounter struct {
-	Mux        sync.Mutex
+	sync.Mutex
 	Link       int
 	Place      int
 	Transition int
@@ -11,7 +11,7 @@ type GlobalCounter struct {
 }
 
 type GlobalTime struct {
-	Mux         sync.Mutex
+	sync.Mutex
 	CurrentTime float64
 	ModTime     float64
 }

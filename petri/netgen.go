@@ -2,7 +2,6 @@ package petri
 
 import (
 	"fmt"
-	"sync"
 )
 
 func CreateNetGenerator(timeModeling float64, timeGen float64, distribution string) Net {
@@ -13,7 +12,6 @@ func CreateNetGenerator(timeModeling float64, timeGen float64, distribution stri
 	var counter *GlobalCounter
 
 	counter = &GlobalCounter{}
-	counter.Mux = sync.Mutex{}
 
 	places = append(places, (&Place{}).Build("P0", 1, counter), (&Place{}).Build("P1", 0, counter))
 

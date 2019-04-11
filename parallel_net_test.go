@@ -15,9 +15,6 @@ func TestParallelObj(t *testing.T) {
 
 	//cond.Cond = sync.NewCond(&cond.Mux)
 
-	gtime.Mux = sync.Mutex{}
-	c.Mux = sync.Mutex{}
-
 	numObj := 2
 	model := GetModelSMOGroupForTestParallel(numObj, 10, &c, &gtime, &cond)
 	timeModeling := 1000.0
