@@ -46,8 +46,8 @@ func GetModelSMOGroupForTestParallel(numGroups int, numInGroup int, c *petri.Glo
 	}
 
 	for i := 1; i <= numSMO; i++ {
-		var positionForStats []petri.Place
-		var listP []petri.Place
+		var positionForStats []*petri.Place
+		var listP []*petri.Place
 		listP = list[i].TNet.Places
 		for j := 0; j < len(listP)-1; j++ {
 			positionForStats = append(positionForStats, listP[j])

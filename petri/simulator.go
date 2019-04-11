@@ -25,15 +25,15 @@ type Simulator struct {
 	NumIn  int
 	NumOut int
 
-	Places      []Place
-	Transitions []Transition
-	LinksIn     []Linker
-	LinksOut    []Linker
+	Places      []*Place
+	Transitions []*Transition
+	LinksIn     []*Linker
+	LinksOut    []*Linker
 
-	EventMin Transition
+	EventMin *Transition
 	TNet     Net
 
-	StatisticsPlaces []Place
+	StatisticsPlaces []*Place
 
 	Lock sync.RWMutex
 	Cond sync.Cond
@@ -44,8 +44,8 @@ type Simulator struct {
 	// mutex locks
 
 	TimeExternalInput []float64
-	OutT              []Transition
-	InT               []Transition
+	OutT              []*Transition
+	InT               []*Transition
 
 	BeginWait []string
 	EndWait   []string
@@ -57,20 +57,20 @@ type Simulator struct {
 type BuildSimulator interface {
 	Build(Net, *GlobalCounter, *GlobalTime, *GlobalLocker) *Simulator
 
-	GetEventMin() Transition
+	GetEventMin() *Transition
 	GetTimeExternalInput() []float64 // atomic
 	SetPriority(int) BuildSimulator
 	ProcessEventMin()
-	FindActiveTransition() []Transition
-	SortTransitionsByPriority([]Transition) // inplace
+	FindActiveTransition() []*Transition
+	SortTransitionsByPriority([]*Transition) // inplace
 	Step()
 	IsBufferEmpty() bool
 	PrintMark()
-	DoConflict([]Transition) Transition
-	CheckIfOutTransitions([]Transition, Transition) bool
+	DoConflict([]*Transition) *Transition
+	CheckIfOutTransitions([]*Transition, *Transition) bool
 	Input()
 	Output()
-	ReinstateActOut(Place, Transition)
+	ReinstateActOut(*Place, *Transition)
 	StepEvent()
 	IsStop() bool
 	DoStatistics()
@@ -103,7 +103,7 @@ func (s *Simulator) Build(n Net, c *GlobalCounter, t *GlobalTime, cond *GlobalLo
 	s.TimeMin = math.MaxFloat64
 	s.Limit = 10
 	s.Counter = 0
-	copy(s.Places, n.Places[:])
+	s.Places = n.Places
 	copy(s.Transitions, n.Transitions[:])
 	copy(s.LinksIn, n.LinksIn[:])
 	copy(s.LinksOut, n.LinksOut[:])
@@ -141,19 +141,19 @@ func (s *Simulator) GetTimeExternalInput() []float64 {
 	return s.TimeExternalInput
 }
 
-func (s *Simulator) GetEventMin() Transition {
+func (s *Simulator) GetEventMin() *Transition {
 	s.ProcessEventMin()
 	return s.EventMin
 }
 
 func (s *Simulator) ProcessEventMin() {
-	var event Transition
+	var event *Transition
 	min := math.MaxFloat64
 
-	for _, t := range s.Transitions {
-		if t.MinTime < min {
-			event = t
-			min = t.MinTime
+	for i := 0; i < len(s.Transitions); i++ {
+		if s.Transitions[i].MinTime < min {
+			event = s.Transitions[i]
+			min = s.Transitions[i].MinTime
 		}
 	}
 
@@ -161,11 +161,12 @@ func (s *Simulator) ProcessEventMin() {
 	s.EventMin = event
 }
 
-func (s *Simulator) FindActiveTransition() []Transition {
-	var activeTransitions []Transition
-	for _, t := range s.Transitions {
-		if t.Condition(s.Places) && t.Probability != 0 {
-			activeTransitions = append(activeTransitions, t)
+func (s *Simulator) FindActiveTransition() []*Transition {
+	var activeTransitions []*Transition
+
+	for i := 0; i < len(s.Transitions); i++ {
+		if s.Transitions[i].Condition(s.Places) && s.Transitions[i].Probability != 0 {
+			activeTransitions = append(activeTransitions, s.Transitions[i])
 		}
 	}
 
@@ -178,7 +179,7 @@ func (s *Simulator) FindActiveTransition() []Transition {
 	return activeTransitions
 }
 
-func (s *Simulator) SortTransitionsByPriority(t []Transition) {
+func (s *Simulator) SortTransitionsByPriority(t []*Transition) {
 	sort.SliceStable(t[:], func(i, j int) bool {
 		return t[i].Priority < t[j].Priority
 	})
@@ -270,7 +271,7 @@ func (s *Simulator) Step() {
 	}
 }
 
-func (s *Simulator) DoConflict(t []Transition) Transition {
+func (s *Simulator) DoConflict(t []*Transition) *Transition {
 	firstT := t[0]
 	if len(t) > 1 {
 		firstT = t[0]
@@ -344,7 +345,7 @@ func (s *Simulator) Input() {
 }
 
 func (s *Simulator) Output() {
-	var externalPlace Place
+	var externalPlace *Place
 	if s.NextObj != nil {
 		externalPlace = s.Places[len(s.Places)-1]
 		externalPlace.External = true
@@ -400,9 +401,9 @@ func (s *Simulator) Output() {
 	}
 }
 
-func (s *Simulator) CheckIfOutTransitions(t []Transition, tofind Transition) bool {
+func (s *Simulator) CheckIfOutTransitions(t []*Transition, tofind *Transition) bool {
 	for _, transition := range t {
-		if &transition == &tofind {
+		if transition == tofind {
 			return true
 		}
 	}
@@ -410,7 +411,7 @@ func (s *Simulator) CheckIfOutTransitions(t []Transition, tofind Transition) boo
 	return false
 }
 
-func (s *Simulator) ReinstateActOut(p Place, t Transition) {
+func (s *Simulator) ReinstateActOut(p *Place, t *Transition) {
 	for _, l := range s.PrevObj.LinksOut {
 		if l.CounterTransitions == t.Number && l.CounterPlaces == p.Number {
 			p.IncrMark(float64(l.KVariant))

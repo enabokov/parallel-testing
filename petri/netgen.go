@@ -6,10 +6,10 @@ import (
 )
 
 func CreateNetGenerator(timeModeling float64, timeGen float64, distribution string) Net {
-	var places []Place
-	var transitions []Transition
-	var linksIn []Linker
-	var linksOut []Linker
+	var places []*Place
+	var transitions []*Transition
+	var linksIn []*Linker
+	var linksOut []*Linker
 	var counter *GlobalCounter
 
 	counter = &GlobalCounter{}
@@ -31,10 +31,10 @@ func CreateNetGenerator(timeModeling float64, timeGen float64, distribution stri
 }
 
 func CreateNetSMO(timeModeling float64, numDevices int, timeServing float64, distribution string, c *GlobalCounter) Net {
-	var places []Place
-	var transitions []Transition
-	var linksIn []Linker
-	var linksOut []Linker
+	var places []*Place
+	var transitions []*Transition
+	var linksIn []*Linker
+	var linksOut []*Linker
 
 	places = append(places,
 		(&Place{}).Build("pending requirements", 0, c),
@@ -60,10 +60,10 @@ func CreateNetSMO(timeModeling float64, numDevices int, timeServing float64, dis
 }
 
 func CreateNetFork(timeModeling float64, numberWay int, probabilities []float64) Net {
-	var places []Place
-	var transitions []Transition
-	var linksIn []Linker
-	var linksOut []Linker
+	var places []*Place
+	var transitions []*Transition
+	var linksIn []*Linker
+	var linksOut []*Linker
 	var counter GlobalCounter
 
 	p1 := Place{}

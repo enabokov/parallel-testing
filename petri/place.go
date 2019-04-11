@@ -16,7 +16,7 @@ type Place struct {
 }
 
 type BuildPlace interface {
-	Build(name string, mark float64, c *GlobalCounter) Place
+	Build(name string, mark float64, c *GlobalCounter) *Place
 
 	GetMean() float64
 	SetMean(float64) BuildPlace // synchronized
@@ -44,7 +44,7 @@ type BuildPlace interface {
 	Clone() BuildPlace
 }
 
-func (p *Place) Build(name string, mark float64, c *GlobalCounter) Place {
+func (p *Place) Build(name string, mark float64, c *GlobalCounter) *Place {
 	p.Name = name
 	p.Mark = mark
 	p.Mean = 0
@@ -53,7 +53,7 @@ func (p *Place) Build(name string, mark float64, c *GlobalCounter) Place {
 	p.incr()
 	p.ObservedMax = mark
 	p.ObservedMin = mark
-	return *p
+	return p
 }
 
 func (p *Place) initNumber() {

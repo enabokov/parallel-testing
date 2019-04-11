@@ -52,12 +52,12 @@ type BuildTransition interface {
 	AddInPlace(int) BuildTransition
 	AddOutPlace(int) BuildTransition
 
-	CreateInPlaces([]Place, []Linker) BuildTransition
-	CreateOutPlaces([]Place, []Linker) BuildTransition
+	CreateInPlaces([]*Place, []*Linker) BuildTransition
+	CreateOutPlaces([]*Place, []*Linker) BuildTransition
 
-	Condition([]Place) bool
-	ActIn([]Place, float64) BuildTransition
-	ActOut([]Place) BuildTransition
+	Condition([]*Place) bool
+	ActIn([]*Place, float64) BuildTransition
+	ActOut([]*Place) BuildTransition
 	InitNext(*GlobalCounter) BuildTransition
 	MinEvent() BuildTransition
 
@@ -66,7 +66,7 @@ type BuildTransition interface {
 	Clone() BuildTransition
 }
 
-func (t *Transition) Build(transitionName string, timeDelay float64, probability float64, c *GlobalCounter) Transition {
+func (t *Transition) Build(transitionName string, timeDelay float64, probability float64, c *GlobalCounter) *Transition {
 	t.Name = transitionName
 	t.AvgTimeServing = timeDelay
 	t.AvgDeviation = 0
@@ -85,7 +85,7 @@ func (t *Transition) Build(transitionName string, timeDelay float64, probability
 	t.Timeout = append(t.Timeout, math.MaxFloat64)
 	t.MinEvent()
 
-	return *t
+	return t
 }
 
 func (t *Transition) SetTimeModeling(m float64) BuildTransition {
@@ -191,7 +191,7 @@ func (t *Transition) AddOutPlace(n int) BuildTransition {
 	return t
 }
 
-func (t *Transition) CreateInPlaces(places []Place, links []Linker) BuildTransition {
+func (t *Transition) CreateInPlaces(places []*Place, links []*Linker) BuildTransition {
 	t.InPlacesWithInfo = t.InPlacesWithInfo[:0]
 	t.CounterPlacesWithInfo = t.CounterPlacesWithInfo[:0]
 	t.InPlaces = t.InPlaces[:0]
@@ -216,7 +216,7 @@ func (t *Transition) CreateInPlaces(places []Place, links []Linker) BuildTransit
 	return t
 }
 
-func (t *Transition) CreateOutPlaces(places []Place, links []Linker) BuildTransition {
+func (t *Transition) CreateOutPlaces(places []*Place, links []*Linker) BuildTransition {
 	t.OutPlaces = t.OutPlaces[:0]
 	t.CounterOutPlaces = t.CounterOutPlaces[:0]
 
@@ -234,7 +234,7 @@ func (t *Transition) CreateOutPlaces(places []Place, links []Linker) BuildTransi
 	return t
 }
 
-func (t *Transition) Condition(places []Place) bool {
+func (t *Transition) Condition(places []*Place) bool {
 	var a = true
 	var b = true
 
@@ -255,7 +255,7 @@ func (t *Transition) Condition(places []Place) bool {
 	return a == true && b == true
 }
 
-func (t *Transition) ActIn(places []Place, currentTime float64) BuildTransition {
+func (t *Transition) ActIn(places []*Place, currentTime float64) BuildTransition {
 	if t.Condition(places) {
 		for i, place := range t.InPlaces {
 			places[place].DecrMark(float64(t.CounterInPlaces[i]))
@@ -281,7 +281,7 @@ func (t *Transition) ActIn(places []Place, currentTime float64) BuildTransition 
 	return t
 }
 
-func (t *Transition) ActOut(places []Place) BuildTransition {
+func (t *Transition) ActOut(places []*Place) BuildTransition {
 	if t.Buffer > 0 {
 		for i, place := range t.OutPlaces {
 			if !places[place].IsExternal() {

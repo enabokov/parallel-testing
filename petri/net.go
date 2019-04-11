@@ -11,14 +11,14 @@ type Net struct {
 	CounterIn         int
 	CounterOut        int
 
-	Places      []Place
-	Transitions []Transition
-	LinksIn     []Linker
-	LinksOut    []Linker
+	Places      []*Place
+	Transitions []*Transition
+	LinksIn     []*Linker
+	LinksOut    []*Linker
 }
 
 type BuildNet interface {
-	Build(string, []Place, []Transition, []Linker, []Linker) Net
+	Build(string, []*Place, []*Transition, []*Linker, []*Linker) Net
 	FindPlaceByName(string) int
 	GetCurrentMark(string) float64
 	GetMeanMark(string) float64
@@ -32,7 +32,7 @@ type BuildNet interface {
 	Clone() BuildNet
 }
 
-func (n *Net) Build(name string, places []Place, transitions []Transition, linksIn []Linker, linksOut []Linker) Net {
+func (n *Net) Build(name string, places []*Place, transitions []*Transition, linksIn []*Linker, linksOut []*Linker) Net {
 	n.Name = name
 	n.CounterPlace = len(places)
 	n.CounterTransition = len(transitions)
