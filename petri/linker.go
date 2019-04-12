@@ -6,128 +6,151 @@ import (
 )
 
 type Linker struct {
-	namePlace     string
-	counterPlaces int
+	Counter       *GlobalCounter
+	NamePlace     string
+	CounterPlaces int
 
-	nameTransition     string
-	counterTransitions int
+	NameTransition     string
+	CounterTransitions int
 
-	kVariant int
-	info     bool
+	KVariant int
+	Info     bool
 
-	number int
+	Number int
+	Label  string
 }
 
 type BuildLink interface {
-	build(place Place, transition Transition, kVariant int, isInfo bool, c *globalCounter) Linker
+	Build(place *Place, transition *Transition, kVariant int, IsInfo bool, c *GlobalCounter, label string) *Linker
 
-	getQuantity() int
-	setQuantity(int) BuildLink
+	GetQuantity() int
+	SetQuantity(int) BuildLink
 
-	getNamePlace() string
-	setNamePlace(string) BuildLink
+	GetNamePlace() string
+	SetNamePlace(string) BuildLink
 
-	getCounterPlaces() int
-	setCounterPlaces(int) BuildLink
+	GetCounterPlaces() int
+	SetCounterPlaces(int) BuildLink
 
-	getNameTransition() string
-	setNameTransition(string) BuildLink
+	GetNameTransition() string
+	SetNameTransition(string) BuildLink
 
-	getCounterTransitions() int
-	setCounterTransitions(int) BuildLink
+	GetCounterTransitions() int
+	SetCounterTransitions(int) BuildLink
 
-	initNext(*globalCounter) BuildLink
-	isInfo() bool
-	setInfo(bool) BuildLink
+	InitNext(*GlobalCounter) BuildLink
+	IsInfo() bool
+	SetInfo(bool) BuildLink
 
-	printInfo()
-	printParams()
+	PrintInfo()
+	PrintParams()
 
-	clone() BuildLink
+	Clone() BuildLink
 }
 
-func (l *Linker) build(place Place, transition Transition, kVariant int, info bool, c *globalCounter) Linker {
-	l.namePlace = place.name
-	l.counterPlaces = place.number
-	l.nameTransition = transition.name
-	l.counterTransitions = transition.number
-	l.kVariant = kVariant
-	l.info = info
-	l.number = c.link
-	c.link++
-	return *l
-}
+func (l *Linker) Build(place *Place, transition *Transition, kVariant int, info bool, c *GlobalCounter, label string) *Linker {
+	l.CounterPlaces = place.Number
+	l.CounterTransitions = transition.Number
+	l.KVariant = kVariant
+	l.Info = info
+	l.NamePlace = place.Name
+	l.NameTransition = transition.Name
+	l.Label = label
 
-func (l *Linker) getQuantity() int {
-	return l.kVariant
-}
-
-func (l *Linker) setQuantity(q int) BuildLink {
-	l.kVariant = q
+	if label == `i` {
+		l.Number = c.LinkIn
+	} else if label == `o` {
+		l.Number = c.LinkOut
+	}
+	l.Counter = c
+	l.incr()
 	return l
 }
 
-func (l *Linker) getNamePlace() string {
-	return l.namePlace
+func (l *Linker) incr() {
+	l.Counter.Lock()
+	if l.Label == `i` {
+		l.Counter.LinkIn++
+	} else if l.Label == `o` {
+		l.Counter.LinkOut++
+	}
+	l.Counter.Unlock()
 }
 
-func (l *Linker) setNamePlace(n string) BuildLink {
-	l.namePlace = n
+func (l *Linker) GetQuantity() int {
+	return l.KVariant
+}
+
+func (l *Linker) SetQuantity(q int) BuildLink {
+	l.KVariant = q
 	return l
 }
 
-func (l *Linker) getCounterPlaces() int {
-	return l.counterPlaces
+func (l *Linker) GetNamePlace() string {
+	return l.NamePlace
 }
 
-func (l *Linker) setCounterPlaces(c int) BuildLink {
-	l.counterPlaces = c
+func (l *Linker) SetNamePlace(n string) BuildLink {
+	l.NamePlace = n
 	return l
 }
 
-func (l *Linker) getNameTransition() string {
-	return l.nameTransition
+func (l *Linker) GetCounterPlaces() int {
+	return l.CounterPlaces
 }
 
-func (l *Linker) setNameTransition(n string) BuildLink {
-	l.nameTransition = n
+func (l *Linker) SetCounterPlaces(c int) BuildLink {
+	l.CounterPlaces = c
 	return l
 }
 
-func (l *Linker) getCounterTransitions() int {
-	return l.counterTransitions
+func (l *Linker) GetNameTransition() string {
+	return l.NameTransition
 }
 
-func (l *Linker) setCounterTransitions(c int) BuildLink {
-	l.counterTransitions = c
+func (l *Linker) SetNameTransition(n string) BuildLink {
+	l.NameTransition = n
 	return l
 }
 
-func (l *Linker) initNext(c *globalCounter) BuildLink {
-	c.link = 0
+func (l *Linker) GetCounterTransitions() int {
+	return l.CounterTransitions
+}
+
+func (l *Linker) SetCounterTransitions(c int) BuildLink {
+	l.CounterTransitions = c
 	return l
 }
 
-func (l *Linker) isInfo() bool {
-	return l.info
-}
-
-func (l *Linker) setInfo(i bool) BuildLink {
-	l.info = i
+func (l *Linker) InitNext(c *GlobalCounter) BuildLink {
+	if l.Label == "i" {
+		c.LinkIn = 0
+	} else {
+		c.LinkOut = 0
+	}
 	return l
 }
 
-func (l *Linker) printInfo() {
+func (l *Linker) IsInfo() bool {
+	return l.Info
+}
+
+func (l *Linker) SetInfo(i bool) BuildLink {
+	l.Info = i
+	return l
+}
+
+func (l *Linker) PrintInfo() {
 	fmt.Printf("%s\n%+v\n",
 		strings.Repeat("=", 10), l,
 	)
 }
 
-func (l *Linker) printParams() {
+func (l *Linker) PrintParams() {
 	fmt.Println("Test")
 }
 
-func (l *Linker) clone() BuildLink {
+func (l *Linker) Clone() BuildLink {
 	var n Linker
 	n = *l
 	return &n

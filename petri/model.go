@@ -2,48 +2,61 @@ package petri
 
 import (
 	"log"
+	"math"
 	"math/rand"
 	"sort"
 	"sync"
 )
 
 type Model struct {
-	gtime           *globalTime
-	objects         []Simulator
-	timeMod         float64
-	t               float64
-	isProtocolPrint bool
-	isStatistics    bool
+	Gtime           *GlobalTime
+	Objects         []*Simulator
+	TimeMod         float64
+	T               float64
+	IsProtocolPrint bool
+	IsStatistics    bool
 }
 
 type BuildModel interface {
-	getNextEventTime() float64
-	modelInput()
-	sortObj([]Simulator)
-	chooseObj([]Simulator) Simulator
-	parallelGo(float64)
-	goRun(float64)
+	Build([]Simulator) *Model
+	GetNextEventTime() float64
+	ModelInput()
+	SortObj([]*Simulator)
+	ChooseObj([]*Simulator) *Simulator
+	ParallelGo(float64)
+	GoRun(float64)
 }
 
-func (m *Model) getNextEventTime() float64 {
-	min := m.objects[0].timeMin
-	for _, m := range m.objects {
-		if m.timeMin < min {
-			min = m.timeMin
+func (m *Model) Build(s []*Simulator, gtime *GlobalTime) *Model {
+	m.Objects = s
+	m.Gtime = gtime
+	m.TimeMod = math.MaxFloat64 - 1
+	m.IsProtocolPrint = true
+	m.IsStatistics = true
+	return m
+}
+
+func (m *Model) GetNextEventTime() float64 {
+	min := m.Objects[0].TimeMin
+
+	for i := 0; i < len(m.Objects); i++ {
+		if m.Objects[i].TimeMin < min {
+			min = m.TimeMod
 		}
 	}
 
 	return min
 }
 
-func (m *Model) modelInput() {
-	m.sortObj(m.objects)
+func (m *Model) ModelInput() {
+	m.SortObj(m.Objects)
 	var wg sync.WaitGroup
 
-	for _, obj := range m.objects {
+	for i := 0; i < len(m.Objects); i++ {
 		wg.Add(1)
+		obj := m.Objects[i]
 		go func() {
-			obj.input()
+			obj.Input()
 			wg.Done()
 		}()
 	}
@@ -51,21 +64,21 @@ func (m *Model) modelInput() {
 	wg.Wait()
 }
 
-func (m *Model) sortObj(s []Simulator) {
+func (m *Model) SortObj(s []*Simulator) {
 	sort.SliceStable(s, func(i, j int) bool {
-		return s[i].priority < s[j].priority
+		return s[i].Priority < s[j].Priority
 	})
 }
 
-func (m *Model) chooseObj(s []Simulator) Simulator {
+func (m *Model) ChooseObj(s []*Simulator) *Simulator {
 	var num int
 	var max int
 
 	if len(s) > 1 {
 		max = len(s)
-		m.sortObj(s)
+		m.SortObj(s)
 		for i := 1; i < len(s); i++ {
-			if s[i].priority < s[i-1].priority {
+			if s[i].Priority < s[i-1].Priority {
 				max = i - 1
 				break
 			}
@@ -83,75 +96,74 @@ func (m *Model) chooseObj(s []Simulator) Simulator {
 	return s[num]
 }
 
-func (m *Model) parallelGo(timeModeling float64) {
-	m.timeMod = timeModeling
+func (m *Model) ParallelGo(timeModeling float64) {
+	m.TimeMod = timeModeling
 
-	t := 0.0
+	m.T = 0.0
 	var min float64
 
-	if m.isProtocolPrint {
-		log.Println("Start marking objects:")
-		// print marks
+	if m.IsProtocolPrint {
+		log.Println("Start marking Objects:")
+		// Print marks
 	}
 
-	var conflictObj []Simulator
-	for t < timeModeling {
-		conflictObj = []Simulator{}
+	var conflictObj []*Simulator
+	for m.T < timeModeling {
+		conflictObj = []*Simulator{}
 
-		// maybe conditions changed
-		m.modelInput()
-		if m.isProtocolPrint {
+		// maybe Conditions changed
+		m.ModelInput()
+		if m.IsProtocolPrint {
 			log.Println("Enter markers into transitions")
-			// print marks
+			// Print marks
 		}
 
 		// search the closest event
-		min = m.getNextEventTime()
-		if m.isStatistics {
-			for _, obj := range m.objects {
-
-				// statistics within delta t
+		min = m.GetNextEventTime()
+		if m.IsStatistics {
+			for i := 0; i < len(m.Objects); i++ {
+				// statistics within delta m.T
 				// statistics is collected only once for all common positions
-				obj.doStatisticsWithInterval((min - t) / min)
+				m.Objects[i].DoStatisticsWithInterval((min - m.T) / min)
 			}
 		}
 
 		// pass time further
-		t = min
+		m.T = min
 
-		m.gtime.currentTime = t
+		m.Gtime.CurrentTime = m.T
 
-		if m.isProtocolPrint {
-			log.Printf("Passing time further. t: %f", t)
+		if m.IsProtocolPrint {
+			log.Printf("Passing time further. m.T: %f", m.T)
 		}
 
-		if t <= timeModeling {
-			for _, e := range m.objects {
-				if t == e.timeMin {
-					conflictObj = append(conflictObj, e)
+		if m.T <= timeModeling {
+			for i := 0; i < len(m.Objects); i++ {
+				if m.T == m.Objects[i].TimeMin {
+					conflictObj = append(conflictObj, m.Objects[i])
 				}
 			}
 
-			if m.isProtocolPrint {
-				log.Println("List of conflicting objects")
+			if m.IsProtocolPrint {
+				log.Println("List of conflicting Objects")
 				for i := 0; i < len(conflictObj); i++ {
-					log.Printf("K[%d] = %s\n", i, conflictObj[i].name)
+					log.Printf("K[%d] = %s\n", i, conflictObj[i].Name)
 				}
 			}
 
-			chosen := m.chooseObj(conflictObj)
-			if m.isProtocolPrint {
-				log.Printf("Chosen object %s\nNext event time: %f\nEvent %s starts for object %s\n", chosen.name, t, chosen.getEventMin().name, chosen.name)
+			chosen := m.ChooseObj(conflictObj)
+			if m.IsProtocolPrint {
+				log.Printf("Chosen object %s\nNext event time: %f\nEvent %s starts for object %s\n", chosen.Name, m.T, chosen.GetEventMin().Name, chosen.Name)
 			}
 
-			chosen.doT()
+			chosen.DoT()
 
 			// proceed event
-			chosen.stepEvent()
+			chosen.StepEvent()
 
-			if m.isProtocolPrint {
+			if m.IsProtocolPrint {
 				log.Println("Exit from markers:")
-				// print markers
+				// Print markers
 			}
 		}
 
@@ -159,45 +171,49 @@ func (m *Model) parallelGo(timeModeling float64) {
 
 }
 
-func (m *Model) goRun(timeModeling float64) {
-	m.gtime.modTime = timeModeling
+func (m *Model) GoRun(timeModeling float64) {
+	m.Gtime.Lock()
+	m.Gtime.ModTime = timeModeling
+	m.Gtime.Unlock()
 
-	t := 0.0
+	m.T = 0.0
 	var min float64
 
-	m.sortObj(m.objects)
-	for _, e := range m.objects {
-		e.input()
+	m.SortObj(m.Objects)
+
+	for i := 0; i < len(m.Objects); i++ {
+		m.Objects[i].Input()
 	}
 
-	if m.isProtocolPrint {
-		for _, e := range m.objects {
-			e.printMark()
+	if m.IsProtocolPrint {
+		for i := 0; i < len(m.Objects); i++ {
+			m.Objects[i].PrintMark()
 		}
 	}
 
-	var K []Simulator
-	for t < timeModeling {
-		K = []Simulator{}
+	var K []*Simulator
+	for m.T < timeModeling {
+		K = []*Simulator{}
 
-		min = m.getNextEventTime()
-		if m.isStatistics {
-			for _, e := range m.objects {
-				e.doStatisticsWithInterval((min - t) / min)
+		min = m.GetNextEventTime()
+		if m.IsStatistics {
+			for i := 0; i < len(m.Objects); i++ {
+				m.Objects[i].DoStatisticsWithInterval((min - m.T) / min)
 			}
 		}
 
-		t = min
-		m.gtime.currentTime = t
+		// time forward
+		m.T = min
+		m.Gtime.CurrentTime = m.T
 
-		if m.isProtocolPrint {
-			log.Printf("Pass time through t: %f\n", t)
+		if m.IsProtocolPrint {
+			log.Printf("Pass time through m.T: %f\n", m.T)
 		}
 
-		if t <= timeModeling {
-			for _, e := range m.objects {
-				if t == e.timeMin {
-					K = append(K, e)
+		if m.T <= timeModeling {
+			for i := 0; i < len(m.Objects); i++ {
+				if m.T == m.Objects[i].TimeMin {
+					K = append(K, m.Objects[i])
 				}
 			}
 
@@ -206,18 +222,18 @@ func (m *Model) goRun(timeModeling float64) {
 				max int
 			)
 
-			if m.isProtocolPrint {
-				log.Println("List of conflicting objects")
+			if m.IsProtocolPrint {
+				log.Println("List of conflicting Objects")
 				for i := 0; i < len(K); i++ {
-					log.Printf("K[%d] = %s\n", i, K[i].name)
+					log.Printf("K[%d] = %s\n", i, K[i].Name)
 				}
 			}
 
 			if len(K) > 1 {
 				max = len(K)
-				m.sortObj(K)
+				m.SortObj(K)
 				for i := 1; i < len(K); i++ {
-					if K[i].priority < K[i-1].priority {
+					if K[i].Priority < K[i-1].Priority {
 						max = i - 1
 						break
 					}
@@ -231,37 +247,39 @@ func (m *Model) goRun(timeModeling float64) {
 				num = 0
 			}
 
-			if m.isProtocolPrint {
-				log.Printf("Chosen object %s -- next event\n", K[num].name)
+			if m.IsProtocolPrint {
+				log.Printf("Chosen object %s -- next event\n", K[num].Name)
 			}
 
-			for _, e := range m.objects {
-				if e.numObject == K[num].numObject {
-					if m.isProtocolPrint {
-						log.Printf("time: %f -- event %s starts for object %s\n", t, e.getEventMin().name, e.name)
+			for i := 0; i < len(m.Objects); i++ {
+				if m.Objects[i].NumObject == K[num].NumObject {
+					if m.IsProtocolPrint {
+						log.Printf(
+							"time: %f -- event %s starts for object %s\n",
+							m.T, m.Objects[i].GetEventMin().Name, m.Objects[i].Name)
 					}
-					e.doT()
-					e.stepEvent()
+					m.Objects[i].DoT()
+					m.Objects[i].StepEvent()
 				}
 			}
 
-			if m.isProtocolPrint {
+			if m.IsProtocolPrint {
 				log.Println("Exit markers from transitions")
-				for _, e := range m.objects {
-					e.printMark()
+				for i := 0; i < len(m.Objects); i++ {
+					m.Objects[i].PrintMark()
 				}
 			}
 
-			m.sortObj(m.objects)
-			for _, e := range m.objects {
-				// check all conditions
-				e.input()
+			m.SortObj(m.Objects)
+			for i := 0; i < len(m.Objects); i++ {
+				// check all Conditions
+				m.Objects[i].Input()
 			}
 
-			if m.isProtocolPrint {
+			if m.IsProtocolPrint {
 				log.Println("Enter markers into transitions")
-				for _, e := range m.objects {
-					e.printMark()
+				for i := 0; i < len(m.Objects); i++ {
+					m.Objects[i].PrintMark()
 				}
 			}
 		}
