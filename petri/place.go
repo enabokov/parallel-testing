@@ -1,145 +1,109 @@
 package petri
 
-import "fmt"
+import "log"
 
 type Place struct {
-	mark   float64
-	name   string
-	number int
-	mean   float64
+	Mark int
+	Name string
+	Number int
+	Mean float64
+	Next *GNext
+	ObservedMax int
+	ObservedMin int
 
-	observedMax float64
-	observedMin float64
-
-	external bool
+	// position is external if it's shared for other Petri-object
+	External bool
 }
 
-type BuildPlace interface {
-	build(name string, mark float64, c *globalCounter) Place
+func (p *Place) Build(n string, m int, gnext *GNext) {
+	p.Name = n
+	p.Mark = m
+	p.Mean = 0
 
-	getMean() float64
-	setMean(float64) BuildPlace // synchronized
+	// golang has no static vars
+	// thus each object keeps pointer on global next
+	p.Next = gnext
+	p.Number = gnext.NextPlace
+	gnext.NextPlace++
 
-	getMark() float64           // synchronized
-	setMark(float64) BuildPlace // synchronized
-	incrMark(float64)           // synchronized
-	decrMark(float64)           // synchronized
-
-	getObservedMax() float64
-	getObservedMin() float64
-
-	getName() string
-	setName(string) BuildPlace
-
-	getNumber() int
-	setNumber(int) BuildPlace
-
-	initNext(*globalCounter) BuildPlace
-	isExternal() bool
-	setExternal(bool) BuildPlace
-
-	print()
-
-	clone() BuildPlace
+	p.ObservedMax = m
+	p.ObservedMin = m
 }
 
-func (p *Place) build(name string, mark float64, c *globalCounter) Place {
-	p.name = name
-	p.mark = mark
-	p.mean = 0
-	p.number = c.place
-	c.place++
-	p.observedMax = mark
-	p.observedMin = mark
-	return *p
+func (p *Place) InitNext() {
+	p.Next.NextPlace = 0
+}
+
+func (p *Place) changeMean(a float64) {
+	p.Mean += (float64(p.Mark) - p.Mean) * a
 }
 
 func (p *Place) getMean() float64 {
-	return p.mean
+	return p.Mean
 }
 
-func (p *Place) setMean(m float64) BuildPlace {
-	p.mean = p.mean + (p.mark-p.mean)*m
-	return p
-}
-
-func (p *Place) getMark() float64 {
-	return p.mark
-}
-
-func (p *Place) setMark(m float64) BuildPlace {
-	p.mark = m
-	return p
-}
-
-func (p *Place) incrMark(m float64) {
-	p.mark += m
-	if p.observedMax < p.mark {
-		p.observedMax = p.mark
+func (p *Place) IncreaseMark(a int) {
+	p.Mark += a
+	if p.ObservedMax < p.Mark {
+		p.ObservedMax = p.Mark
 	}
 
-	if p.observedMin > p.mark {
-		p.observedMin = p.mark
+	if p.ObservedMin > p.Mark {
+		p.ObservedMin = p.Mark
 	}
 }
 
-func (p *Place) decrMark(m float64) {
-	p.mark -= m
-	if p.observedMax < p.mark {
-		p.observedMax = p.mark
+func (p *Place) decreaseMark(a int) {
+	p.Mark -= a
+	if p.ObservedMax < p.Mark {
+		p.ObservedMax = p.Mark
 	}
 
-	if p.observedMin > p.mark {
-		p.observedMin = p.mark
+	if p.ObservedMin > p.Mark {
+		p.ObservedMin = p.Mark
 	}
 }
 
-func (p *Place) getObservedMax() float64 {
-	return p.observedMax
+func (p *Place) getMark() int {
+	return p.Mark
 }
 
-func (p *Place) getObservedMin() float64 {
-	return p.observedMin
+func (p *Place) getObservedMax() int {
+	return p.ObservedMax
 }
 
-func (p *Place) getName() string {
-	return p.name
+func (p *Place) getObservedMin() int {
+	return p.ObservedMin
 }
 
-func (p *Place) setName(n string) BuildPlace {
-	p.name = n
-	return p
+func (p *Place) setMark(a int) {
+	p.Mark = a
+}
+
+func (p *Place) GetName() string {
+	return p.Name
+}
+
+func (p *Place) setName(s string) {
+	p.Name = s
 }
 
 func (p *Place) getNumber() int {
-	return p.number
+	return p.Number
 }
 
-func (p *Place) setNumber(n int) BuildPlace {
-	p.number = n
-	return p
+func (p *Place) setNumber(n int) {
+	p.Number = n
 }
 
-func (p *Place) initNext(c *globalCounter) BuildPlace {
-	c.place = 0
-	return p
+func (p *Place) printParameters() {
+	log.Printf("Place %s has such parameters: number %d, mark %d", p.Name, p.Number, p.Mark)
 }
 
 func (p *Place) isExternal() bool {
-	return p.external
+	return p.External
 }
 
-func (p *Place) setExternal(e bool) BuildPlace {
-	p.external = e
-	return p
-}
-
-func (p *Place) print() {
-	fmt.Printf("%+v", p)
-}
-
-func (p *Place) clone() BuildPlace {
-	var n Place
-	n = *p
-	return &n
+func (p *Place) setExternal(external bool) {
+	p.External = external
 }

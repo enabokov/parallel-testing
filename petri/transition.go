@@ -8,245 +8,293 @@ import (
 )
 
 type Transition struct {
-	timeModeling   float64
-	name           string
-	buffer         int
-	priority       int
-	probability    float64
-	minTime        float64
-	timeServing    float64
-	avgTimeServing float64
-	avgDeviation   float64
-	distribution   string
+	// golang has no static vars
+	// thus it refers to global vars
+	GTimeMod *GTimeModeling
 
-	timeout               []float64
-	inPlaces              []int
-	inPlacesWithInfo      []int
-	counterInPlaces       []int
-	counterPlacesWithInfo []int
-	outPlaces             []int
-	counterOutPlaces      []int
+	Name string
 
-	iMultiChannel int
-	number        int
-	mean          float64
-	observedMin   float64
-	observedMax   float64
+	Buffer int
+	Priority int
+	Probability float64
+
+	MinTime float64
+	TimeServ float64
+
+	// avg time serving
+	Parametr float64
+
+	// avg deviation time serving
+	ParamDeviation float64
+	Distribution string
+	TimeOut []float64
+	InP []int
+	InPWithInf []int
+	QuantIn []int
+	QuantInWithInf []int
+	OutP []int
+	QuantOut []int
+
+	Num int
+	Number int
+	Mean float64
+	ObservedMax int
+	ObservedMin int
 }
 
-type BuildTransition interface {
-	setTimeModeling(float64) BuildTransition
-	setMean(float64) BuildTransition
-	setPriority(int) BuildTransition
-	setProbability(float64) BuildTransition
-	setBuffer(int) BuildTransition
-	setDistribution(string, float64) BuildTransition
-	setDeviation(float64) BuildTransition
-	setAvgTimeServing(float64) BuildTransition
-	setName(string) BuildTransition
-	setIMultiChannel(int) BuildTransition
-	setNumber(int) BuildTransition
-
-	generateTimeServing() float64
-
-	addInPlace(int) BuildTransition
-	addOutPlace(int) BuildTransition
-
-	createInPlaces([]Place, []Linker) BuildTransition
-	createOutPlaces([]Place, []Linker) BuildTransition
-
-	condition([]Place) bool
-	actIn([]Place, float64) BuildTransition
-	actOut([]Place) BuildTransition
-	initNext(*globalCounter) BuildTransition
-	minEvent() BuildTransition
-
-	print()
-
-	clone() BuildTransition
+func (t *Transition) GetTimeModeling() float64 {
+	return t.GTimeMod.TimeModelingTransition
 }
 
-func (t *Transition) build(transitionName string, timeDelay float64, probability float64, c *globalCounter) Transition {
-	t.name = transitionName
-	t.avgTimeServing = timeDelay
-	t.avgDeviation = 0
-	t.timeServing = t.avgTimeServing
-	t.buffer = 0
-	t.minTime = math.MaxFloat64
-	t.iMultiChannel = 0
-	t.mean = 0
-	t.observedMax = float64(t.buffer)
-	t.observedMin = float64(t.buffer)
-	t.probability = probability
-	t.priority = 0
-	t.distribution = ""
-	t.number = c.transition
-	c.transition++
-	t.timeout = append(t.timeout, math.MaxFloat64)
-	t.minEvent()
-
-	return *t
+func (t *Transition) SetTimeModeling(aTimeModeling float64) {
+	t.GTimeMod.TimeModelingTransition = aTimeModeling
 }
 
-func (t *Transition) setTimeModeling(m float64) BuildTransition {
-	t.timeModeling = m
+func (t *Transition) Build(n string, ts float64, gnext *GNext, gtimeModeling *GTimeModeling) *Transition {
+	t.GTimeMod = gtimeModeling
+
+	t.Name = n
+	t.Parametr = ts
+	t.ParamDeviation = 0
+	t.TimeServ = t.Parametr
+	t.Buffer = 0
+
+	t.MinTime = math.MaxFloat64
+	t.Num = 0
+	t.Mean = 0
+	t.ObservedMin = t.Buffer
+	t.ObservedMax = t.Buffer
+	t.Priority = 0
+	t.Probability = 1.0
+	t.Distribution = ""
+
+	t.Number = gnext.NextTransition
+	gnext.NextTransition++
+
+	t.TimeOut = append(t.TimeOut, math.MaxFloat64)
+	t.MinEvent()
 	return t
 }
 
-func (t *Transition) initNext(c *globalCounter) BuildTransition {
-	c.transition = 0
+func (t *Transition) BuildWithPriority(n string, timeDelay float64, priority int, gnext *GNext, gtimeModeling *GTimeModeling) *Transition {
+	t.GTimeMod = gtimeModeling
+
+	t.Name = n
+	t.Parametr = timeDelay
+	t.ParamDeviation = 0
+	t.TimeServ = t.Parametr
+	t.Buffer = 0
+
+	t.MinTime = math.MaxFloat64
+	t.Num = 0
+	t.Mean = 0
+	t.ObservedMax = t.Buffer
+	t.ObservedMin = t.Buffer
+	t.Priority = priority
+	t.Probability = 1
+	t.Distribution = ""
+
+	t.Number = gnext.NextTransition
+	gnext.NextTransition++
+
+	t.TimeOut = append(t.TimeOut, math.MaxFloat64)
+	t.MinEvent()
 	return t
 }
 
-func (t *Transition) setMean(m float64) BuildTransition {
-	t.mean += (float64(t.buffer) - t.mean) * m
+func (t *Transition) BuildWithProbability(n string, timeDelay float64, probability float64, gnext *GNext, gtimeModeling *GTimeModeling) *Transition {
+	t.GTimeMod = gtimeModeling
+
+	t.Name = n
+	t.Parametr = timeDelay
+	t.ParamDeviation = 0
+	t.TimeServ = t.Parametr
+	t.Buffer = 0
+
+	t.MinTime = math.MaxFloat64
+	t.Num = 0
+	t.Mean = 0
+	t.ObservedMax = t.Buffer
+	t.ObservedMin = t.Buffer
+	t.Priority = 0
+	t.Distribution = ""
+
+	t.Number = gnext.NextTransition
+	gnext.NextTransition++
+
+	t.TimeOut = append(t.TimeOut, math.MaxFloat64)
+	t.MinEvent()
 	return t
 }
 
-func (t *Transition) setPriority(p int) BuildTransition {
-	t.priority = p
-	return t
+func (t *Transition) changeMean(a float64) {
+	t.Mean += (float64(t.Buffer) - t.Mean) * a
 }
 
-func (t *Transition) setProbability(p float64) BuildTransition {
-	t.probability = p
-	return t
+func (t *Transition) getMean() float64 {
+	return t.Mean
 }
 
-func (t *Transition) setBuffer(b int) BuildTransition {
-	t.buffer = b
-	return t
+func (t *Transition) getObservedMax() int {
+	return t.ObservedMax
 }
 
-func (t *Transition) setDistribution(d string, param float64) BuildTransition {
-	t.distribution = d
-	t.avgTimeServing = param
-	t.timeServing = t.avgTimeServing
-	return t
+func (t *Transition) getObservedMin() int {
+	return t.ObservedMin
 }
 
-func (t *Transition) setAvgTimeServing(v float64) BuildTransition {
-	t.avgTimeServing = v
-	t.timeServing = t.avgTimeServing
-	return t
+func (t *Transition) GetPriority() int {
+	return t.Priority
 }
 
-func (t *Transition) setDeviation(v float64) BuildTransition {
-	t.avgDeviation = v
-	return t
+func (t *Transition) setPriority(r int) {
+	t.Priority = r
 }
 
-func (t *Transition) setIMultiChannel(v int) BuildTransition {
-	t.iMultiChannel = v
-	return t
+func (t *Transition) getProbability() float64 {
+	return t.Probability
 }
 
-func (t *Transition) setNumber(v int) BuildTransition {
-	t.number = v
-	return t
+func (t *Transition) setProbability(v float64) {
+	t.Probability = v
 }
 
-func (t *Transition) generateTimeServing() float64 {
-	if t.distribution != "" {
-		switch strings.ToLower(t.distribution) {
-		case "exp":
-			t.timeServing = Exp(t.avgTimeServing)
-			break
-		case "unif":
-			t.timeServing = Uniform(t.avgTimeServing-t.avgDeviation, t.avgTimeServing+t.avgDeviation)
-			break
-		case "norm":
-			t.timeServing = Normal(t.avgTimeServing, t.avgDeviation)
-			break
-		}
-	} else {
-		t.timeServing = t.avgTimeServing
+func (t *Transition) getBuffer() int {
+	return t.Buffer
+}
+
+func (t *Transition) setDistribution(s string, param float64) {
+	t.Distribution = s
+	t.Parametr = param
+	t.TimeServ = t.Parametr
+}
+
+func (t *Transition) getTimeServing() float64 {
+	var a = t.TimeServ
+	if t.Distribution != "" {
+		a = t.generateTimeServ()
 	}
 
-	return t.timeServing
+	return a
 }
 
-func (t *Transition) setName(n string) BuildTransition {
-	t.name = n
-	return t
+func (t *Transition) getParametr() float64 {
+	return t.Parametr
 }
 
-func (t *Transition) setMultiChannel(m int) BuildTransition {
-	t.iMultiChannel = m
-	return t
+func (t *Transition) setParametr(p float64) {
+	t.Parametr = p
+	t.TimeServ = t.Parametr
 }
 
-func (t *Transition) setTransition(v int) BuildTransition {
-	t.number = v
-	return t
+func (t *Transition) generateTimeServ() float64 {
+	if t.Distribution != "" {
+		if strings.ToLower(t.Distribution) == "exp" {
+			t.TimeServ = Exp(t.Parametr)
+		} else if strings.ToLower(t.Distribution) == "unif" {
+			t.TimeServ = Uniform(t.Parametr - t.ParamDeviation, t.Parametr + t.ParamDeviation)
+		} else if strings.ToLower(t.Distribution) == "norm" {
+			t.TimeServ = Normal(t.Parametr, t.ParamDeviation)
+		}
+	} else {
+
+		// determined value
+		t.TimeServ = t.Parametr
+	}
+
+	return t.TimeServ
 }
 
-func (t *Transition) addInPlace(n int) BuildTransition {
-	t.inPlaces = append(t.inPlaces, n)
-	return t
+func (t *Transition) GetName() string {
+	return t.Name
 }
 
-func (t *Transition) addOutPlace(n int) BuildTransition {
-	t.outPlaces = append(t.outPlaces, n)
-	return t
+func (t *Transition) setName(s string) {
+	t.Name = s
 }
 
-func (t *Transition) createInPlaces(places []Place, links []Linker) BuildTransition {
-	t.inPlacesWithInfo = t.inPlacesWithInfo[:0]
-	t.counterPlacesWithInfo = t.counterPlacesWithInfo[:0]
-	t.inPlaces = t.inPlaces[:0]
-	t.counterInPlaces = t.counterInPlaces[:0]
+func (t *Transition) getMinTime() float64 {
+	t.MinEvent()
+	return t.MinTime
+}
 
-	for _, link := range links {
-		if float64(link.counterTransitions) == t.avgTimeServing {
-			if link.isInfo() {
-				t.inPlacesWithInfo = append(t.inPlacesWithInfo, link.getCounterPlaces())
-				t.counterPlacesWithInfo = append(t.counterPlacesWithInfo, link.getQuantity())
+func (t *Transition) getNum() int {
+	return t.Num
+}
+
+func (t *Transition) getNumber() int {
+	return t.Number
+}
+
+func (t *Transition) addInP(n int) {
+	t.InP = append(t.InP, n)
+}
+
+func (t *Transition) addOutP(n int) {
+	t.OutP = append(t.OutP, n)
+}
+
+func (t *Transition) createInP(inPP []Place, ties []ArcIn) {
+	// remove elements, leave allocated mem
+	t.InPWithInf = t.InPWithInf[:0]
+	t.QuantInWithInf = t.QuantInWithInf[:0]
+	t.InP = t.InP[:0]
+	t.QuantIn = t.QuantIn[:0]
+
+	for i := 0; i < len(ties); i++ {
+		if ties[i].getNumT() == t.getNumber() {
+			if ties[i].getIsInf() {
+				t.InPWithInf = append(t.InPWithInf, ties[i].getNumP())
+				t.QuantInWithInf = append(t.QuantInWithInf, ties[i].getQuantity())
 			} else {
-				t.inPlaces = append(t.inPlaces, link.getCounterPlaces())
-				t.counterInPlaces = append(t.counterInPlaces, link.getQuantity())
+				t.InP = append(t.InP, ties[i].getNumP())
+				t.QuantIn = append(t.QuantIn, ties[i].getQuantity())
 			}
 		}
 	}
 
-	if len(t.inPlaces) == 0 {
-		log.Fatalln(fmt.Errorf("transition %s hasn't input positions", t.name))
+	if len(t.InP) == 0 {
+		log.Println(fmt.Errorf("transition %s hasn't input positions", t.GetName()))
 	}
-
-	return t
 }
 
-func (t *Transition) createOutPlaces(places []Place, links []Linker) BuildTransition {
-	t.outPlaces = t.outPlaces[:0]
-	t.counterOutPlaces = t.counterOutPlaces[:0]
+func (t *Transition) createOutP(inPP []Place, arcs []ArcOut) {
+	t.OutP = t.OutP[:0]
+	t.QuantOut = t.QuantOut[:0]
 
-	for _, link := range links {
-		if float64(link.getCounterTransitions()) == t.avgTimeServing {
-			t.outPlaces = append(t.outPlaces, link.getCounterPlaces())
-			t.counterOutPlaces = append(t.counterOutPlaces, link.getQuantity())
+	for i := 0; i < len(arcs); i++ {
+		if arcs[i].getNumT() == t.getNumber() {
+			t.OutP = append(t.OutP, arcs[i].getNumP())
+			t.QuantOut = append(t.QuantOut, arcs[i].getQuantity())
 		}
 	}
 
-	if len(t.outPlaces) == 0 {
-		log.Fatalln(fmt.Errorf("transition %s hasn't input positions", t.name))
+	if len(t.OutP) == 0 {
+		log.Println(fmt.Errorf("transition %s hasn't output positions", t.GetName()))
 	}
-
-	return t
 }
 
-func (t *Transition) condition(places []Place) bool {
+func (t *Transition) setNum(n int) {
+	t.Num = n
+}
+
+func (t *Transition) setNumber(n int) {
+	t.Number = n
+}
+
+func (t *Transition) condition(pp []Place) bool {
 	var a = true
 	var b = true
 
-	for i, place := range t.inPlaces {
-		if places[place].getMark() < float64(t.counterInPlaces[i]) {
+	for i := 0; i < len(t.InP); i++ {
+		if pp[t.InP[i]].getMark() < t.QuantIn[i] {
 			a = false
 			break
 		}
 	}
 
-	for i, place := range t.inPlacesWithInfo {
-		if places[place].getMark() < float64(t.counterPlacesWithInfo[i]) {
+	for i := 0; i < len(t.InPWithInf); i++ {
+		if pp[t.InPWithInf[i]].getMark() < t.QuantInWithInf[i] {
 			b = false
 			break
 		}
@@ -255,83 +303,101 @@ func (t *Transition) condition(places []Place) bool {
 	return a == true && b == true
 }
 
-func (t *Transition) actIn(places []Place, currentTime float64) BuildTransition {
-	if t.condition(places) {
-		for i, place := range t.inPlaces {
-			places[place].decrMark(float64(t.counterInPlaces[i]))
+func (t *Transition) actIn(pp []Place, currentTime float64) {
+	if t.condition(pp) {
+		for i := 0; i < len(t.InP); i++ {
+			pp[t.InP[i]].decreaseMark(t.QuantIn[i])
 		}
-
-		if t.buffer == 0 {
-			t.timeout = make([]float64, 1)
-			t.timeout[0] = currentTime + t.timeServing
+		if t.Buffer == 0 {
+			t.TimeOut[0] = currentTime + t.getTimeServing()
 		} else {
-			t.timeout = append(t.timeout, currentTime+t.timeServing)
+			t.TimeOut = append(t.TimeOut, currentTime + t.getTimeServing())
 		}
 
-		t.buffer++
-		if t.observedMax < float64(t.buffer) {
-			t.observedMax = float64(t.buffer)
+		t.Buffer++
+		if t.ObservedMax < t.Buffer {
+			t.ObservedMax = t.Buffer
 		}
 
-		t.minEvent()
+		t.MinEvent()
 	} else {
 		log.Println("Condition not true")
 	}
-
-	return t
 }
 
-func (t *Transition) actOut(places []Place) BuildTransition {
-	if t.buffer > 0 {
-		for i, place := range t.outPlaces {
-			if !places[place].isExternal() {
-				places[place].incrMark(float64(t.counterOutPlaces[i]))
+func (t *Transition) actOut(pp []Place) {
+	if t.Buffer > 0 {
+		for i := 0; i < len(t.OutP); i++ {
+			if !pp[t.OutP[i]].isExternal() {
+				pp[t.OutP[i]].IncreaseMark(t.QuantOut[i])
 			}
 		}
-
-		if t.iMultiChannel == 0 && len(t.timeout) == 1 {
-			t.timeout[0] = math.MaxFloat64
+		if t.Num == 0 && len(t.TimeOut) == 1 {
+			t.TimeOut[0] = math.MaxFloat64
 		} else {
-			t.timeout = append(t.timeout[:t.iMultiChannel], t.timeout[t.iMultiChannel+1:]...)
+			t.TimeOut = append(t.TimeOut[:t.Num], t.TimeOut[t.Num+1:]...)
 		}
 
-		t.buffer--
-		if t.observedMin > float64(t.buffer) {
-			t.observedMin = float64(t.buffer)
+		t.Buffer--
+		if t.ObservedMin > t.Buffer {
+			t.ObservedMin = t.Buffer
 		}
-
+	} else {
+		log.Println("Buffer is null")
 	}
-
-	return t
 }
 
-func (t *Transition) minEvent() BuildTransition {
-	var minTime = math.MaxFloat64
-	if len(t.timeout) > 0 {
-		for i, timeout := range t.timeout {
-			if timeout < minTime {
-				minTime = t.timeout[i]
-				t.iMultiChannel = i
+func (t *Transition) MinEvent() {
+	t.MinTime = math.MaxFloat64
+	if len(t.TimeOut) > 0 {
+		for i := 0; i < len(t.TimeOut); i++ {
+			if t.TimeOut[i] < t.MinTime {
+				t.MinTime = t.TimeOut[i]
+				t.Num = i
 			}
 		}
 	}
-
-	return t
 }
 
 func (t *Transition) print() {
-	fmt.Printf("%+v", t)
+	for _, time := range t.TimeOut {
+		log.Printf("%f %s", time, t.GetName())
+	}
 }
 
-func (t *Transition) clone() BuildTransition {
-	var n Transition
-	n = *t
-	n.timeout = t.timeout[:]
-	n.inPlaces = t.inPlaces[:]
-	n.inPlacesWithInfo = t.inPlacesWithInfo[:]
-	n.counterInPlaces = t.counterInPlaces[:]
-	n.counterPlacesWithInfo = t.counterPlacesWithInfo[:]
-	n.outPlaces = t.outPlaces[:]
-	n.counterOutPlaces = t.counterOutPlaces[:]
-	return &n
+func (t *Transition) printParameters() {
+	log.Printf("%+v", t)
+	log.Printf("Time of service (generate) %f\n", t.getTimeServing())
+}
+
+func (t *Transition) getInP() []int {
+	return t.InP
+}
+
+func (t *Transition) getOutP() []int {
+	return t.OutP
+}
+
+func (t *Transition) isEmptyInputPlacesList() bool {
+	return len(t.InP) == 0
+}
+
+func (t *Transition) isEmptyOutputPlacesList() bool {
+	return len(t.OutP) == 0
+}
+
+func (t *Transition) setBuffer(buff int) {
+	t.Buffer = buff
+}
+
+func (t *Transition) getDistribution() string {
+	return t.Distribution
+}
+
+func (t *Transition) getParamDeviation() float64 {
+	return t.ParamDeviation
+}
+
+func (t *Transition) setParamDeviation(parameter float64) {
+	t.ParamDeviation = parameter
 }

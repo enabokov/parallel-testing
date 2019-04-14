@@ -1,124 +1,137 @@
 package petri
 
-import "fmt"
+import (
+	"log"
+	"strings"
+)
 
 type Net struct {
-	name              string
-	counterPlace      int
-	counterTransition int
-	counterIn         int
-	counterOut        int
-
-	places      []Place
-	transitions []Transition
-	linksIn     []Linker
-	linksOut    []Linker
+	Name string
+	NumP int
+	NumT int
+	NumIn int
+	NumOut int
+	ListP []Place
+	ListT []Transition
+	ListIn []ArcIn
+	ListOut []ArcOut
 }
 
-type BuildNet interface {
-	build(string, []Place, []Transition, []Linker, []Linker) Net
-	findPlaceByName(string) int
-	getCurrentMark(string) float64
-	getMeanMark(string) float64
-	getCurrentBuffer(string) int
-	getMeanBuffer(string) float64
+func (n *Net) Build(s string, pp []Place, tt []Transition, in []ArcIn, out[]ArcOut) {
+	n.Name = s
+	n.NumP = len(pp)
+	n.NumT = len(tt)
+	n.NumIn = len(in)
+	n.NumOut = len(out)
+	n.ListP = pp
+	n.ListT = tt
+	n.ListIn = in
+	n.ListOut = out
 
-	printLinks()
-	printMark()
-	printBuffer()
-
-	clone() BuildNet
-}
-
-func (n *Net) build(name string, places []Place, transitions []Transition, linksIn []Linker, linksOut []Linker) Net {
-	n.name = name
-	n.counterPlace = len(places)
-	n.counterTransition = len(transitions)
-	n.counterIn = len(linksIn)
-	n.counterOut = len(linksOut)
-
-	n.places = places[:]
-	n.transitions = transitions[:]
-	n.linksIn = linksIn[:]
-	n.linksOut = linksOut[:]
-
-	for _, t := range n.transitions {
-		t.createInPlaces(places, linksIn)
-		t.createOutPlaces(places, linksOut)
+	for i := 0; i < n.NumP; i++ {
+		n.ListP[i] = pp[i]
 	}
 
-	return *n
+	for i := 0; i < n.NumT; i++ {
+		n.ListT[i] = tt[i]
+	}
+
+	for i := 0; i < n.NumIn; i++ {
+		n.ListIn[i] = in[i]
+	}
+
+	for i := 0; i < n.NumOut; i++ {
+		n.ListOut[i] = out[i]
+	}
+
+	for i := 0; i < len(n.ListT); i++ {
+		n.ListT[i].createInP(n.ListP, n.ListIn)
+		n.ListT[i].createOutP(n.ListP, n.ListOut)
+	}
 }
 
-func (n *Net) findPlaceByName(placeName string) int {
-	for i, place := range n.places {
-		if placeName == place.getName() {
-			return i
+func (n *Net) GetName() string {
+	return n.Name
+}
+
+func (n *Net) SetName(s string) {
+	n.Name = s
+}
+
+func (n *Net) GetListP() []Place {
+	return n.ListP
+}
+
+func (n *Net) GetListT() []Transition {
+	return n.ListT
+}
+
+func (n *Net) GetArcIn() []ArcIn {
+	return n.ListIn
+}
+
+func (n *Net) GetArcOut() []ArcOut {
+	return n.ListOut
+}
+
+func (n *Net) StrToNumP(s string) int {
+	a := -1
+
+	for i := 0; i < len(n.ListP); i++ {
+		if strings.ToLower(s) == n.ListP[i].GetName() {
+			a = n.ListP[i].getNumber()
+			break
 		}
 	}
 
-	return -1
+	return a
 }
 
-func (n *Net) findTransitionByName(transitionName string) int {
-	for i, transition := range n.transitions {
-		if transitionName == transition.name {
-			return i
+func (n *Net) StrToNumT(s string) int {
+	a := -1
+
+	for i := 0; i < len(n.ListT); i++ {
+		if strings.ToLower(s) == n.ListT[i].GetName() {
+			a = n.ListT[i].getNumber()
+			break
 		}
 	}
 
-	return -1
+	return a
 }
 
-func (n *Net) getCurrentMark(placeName string) float64 {
-	return n.places[n.findPlaceByName(placeName)].getMark()
+func (n *Net) GetCurrentMark(s string) int {
+	return n.ListP[n.StrToNumP(s)].getMark()
 }
 
-func (n *Net) getMeanMark(placeName string) float64 {
-	return n.places[n.findPlaceByName(placeName)].getMean()
+func (n *Net) getMeanMark(s string) float64 {
+	return n.ListP[n.StrToNumP(s)].getMean()
 }
 
-func (n *Net) getCurrentBuffer(transitionName string) int {
-	return n.transitions[n.findTransitionByName(transitionName)].buffer
+func (n *Net) getCurrentBuffer(s string) int {
+	return n.ListT[n.StrToNumT(s)].getBuffer()
 }
 
-func (n *Net) getMeanBuffer(transitionName string) float64 {
-	return n.transitions[n.findTransitionByName(transitionName)].mean
+func (n *Net) getMeanBuffer(s string) float64 {
+	return n.ListT[n.StrToNumT(s)].getMean()
 }
 
-func (n *Net) printLinks() {
-	fmt.Printf("Petri net %s ties: %b input links and %b output links\n", n.name, len(n.linksIn), len(n.linksOut))
-	for _, l := range n.linksIn {
-		l.printInfo()
-	}
-
-	for _, l := range n.linksOut {
-		l.printInfo()
-	}
+func (n *Net) printTies() {
+	log.Printf("Petri net %s ties: %d input ties and %d output ties\n", n.Name, len(n.ListIn), len(n.ListOut))
 }
 
 func (n *Net) printMark() {
-	fmt.Printf("Mark in Net %s: ", n.name)
-	for _, p := range n.places {
-		fmt.Print(p.getMean())
+	log.Printf("Mark in Net %s: ", n.GetName())
+	for _, p := range n.ListP {
+		log.Print(p.getMark())
 	}
-	fmt.Println()
+	log.Println()
 }
 
 func (n *Net) printBuffer() {
-	fmt.Printf("Buffer in Net %s: ", n.name)
-	for _, t := range n.transitions {
-		fmt.Print(t.buffer)
+	log.Printf("Buffer in Net %s: ", n.GetName())
+	for _, t := range n.ListT {
+		log.Print(t.getBuffer())
 	}
-	fmt.Println()
-}
-
-func (n *Net) clone() BuildNet {
-	var v Net
-	v = *n
-	v.places = n.places[:]
-	v.transitions = n.transitions[:]
-	v.linksIn = n.linksIn[:]
-	v.linksOut = n.linksOut[:]
-	return &v
+	log.Println()
 }
