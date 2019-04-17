@@ -16,7 +16,9 @@ func main() {
 	var gtimeMod *petri.GTimeModeling
 	var glimit *petri.GLimitArrayExtInputs
 	var gcurrent *petri.GTimeCurrent
-	gchannel := make(chan int, 1)
+
+	lock := sync.Mutex{}
+	gcond := sync.NewCond(&lock)
 
 	gnext = &petri.GNext{}
 	gtimeMod = &petri.GTimeModeling{}
@@ -29,7 +31,7 @@ func main() {
 	glimit.LimitSimulation = 10
 	gcurrent.TimeCurrentSimulation = 0
 
-	model := getModelSMOgroupForTestParallel(numObj, 10, gnext, gtimeMod, glimit, gcurrent, gchannel)
+	model := getModelSMOgroupForTestParallel(numObj, 10, gnext, gtimeMod, glimit, gcurrent, gcond)
 	log.Printf("Quantity of objects %d, quantity of positions in one object %d", len(model.GetListObj()), len(model.GetListObj()[1].GetListP()))
 	model.SetTimeMod(time)
 
@@ -60,7 +62,7 @@ func getModelSMOgroupForTestParallel(
 	gnext *petri.GNext,
 	gtimeMod *petri.GTimeModeling,
 	glimit *petri.GLimitArrayExtInputs,
-	gcurrent *petri.GTimeCurrent, gchannel chan int) *petri.Model {
+	gcurrent *petri.GTimeCurrent, gcond *sync.Cond) *petri.Model {
 
 	var list []petri.Simulator
 
@@ -69,12 +71,12 @@ func getModelSMOgroupForTestParallel(
 
 	net := petri.CreateNetGenerator(2.0, gnext, gtimeMod)
 	sim1 := petri.Simulator{}
-	list = append(list, sim1.Build(net, gnext, gtimeMod, glimit, gcurrent, gchannel))
+	list = append(list, sim1.Build(net, gnext, gtimeMod, glimit, gcurrent))
 	for i := 0; i < numSMO; i++ {
 		sim2 := petri.Simulator{}
 		list = append(list, sim2.Build(
 			petri.CreateNetSMOgroup(numInGroup, 1, 1.0, fmt.Sprintf("group_%d", i), gnext, gtimeMod),
-			gnext, gtimeMod, glimit, gcurrent, gchannel))
+			gnext, gtimeMod, glimit, gcurrent))
 	}
 
 	list[0].GetNet().GetListP()[1] = list[1].GetNet().GetListP()[0]

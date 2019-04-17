@@ -5,13 +5,16 @@ import (
 	"math"
 	"math/rand"
 	"sort"
+	"sync"
 )
 
 type Simulator struct {
 	GTimeMod *GTimeModeling
 	GLimit *GLimitArrayExtInputs
 	GTimeCurr *GTimeCurrent
-	GChannel chan int
+
+	Lock sync.Mutex
+	Cond *sync.Cond
 
 	TimeLocal   float64
 	Name        string
@@ -49,11 +52,14 @@ type Simulator struct {
 	Counter int
 }
 
-func (s *Simulator) Build(pNet *Net, gnext *GNext, gmodeling *GTimeModeling, glimit *GLimitArrayExtInputs, gcurrent *GTimeCurrent, gchannel chan int) Simulator {
+func (s *Simulator) Build(pNet *Net, gnext *GNext, gmodeling *GTimeModeling, glimit *GLimitArrayExtInputs, gcurrent *GTimeCurrent) Simulator {
 	s.GTimeMod = gmodeling
 	s.GLimit = glimit
 	s.GTimeCurr = gcurrent
-	s.GChannel = gchannel
+
+	s.Lock = sync.Mutex{}
+	s.Lock.Lock()
+	s.Cond = sync.NewCond(&s.Lock)
 
 	s.NNet = pNet
 	s.Name = s.NNet.GetName()
@@ -361,20 +367,22 @@ func (s *Simulator) Output() {
 			if s.NextObj != nil && s.Contains(s.OutT, s.ListT[i]) {
 				s.NextObj.AddTimeExternalInput(s.GetTimeLocal())
 
-
 				// lock
 				// signal
 				// unlock
 				log.Printf("Signal %s", s.GetName())
-				s.GChannel <- 1
-				// lock
+				s.NextObj.Lock.Lock()
+				s.NextObj.Cond.Signal()
+				s.NextObj.Lock.Unlock()
+
+				s.Lock.Lock()
 				for len(s.NextObj.GetTimeExternalInput()) > s.GetLimitArrayExtInputs() {
 					// await
 					log.Printf("Wait %s", s.GetName())
-					<-s.GChannel
+					s.Cond.Wait()
 				}
-
 				// unlock
+				s.Lock.Unlock()
 			}
 
 			if s.ListT[i].getBuffer() > 0 {
@@ -389,16 +397,19 @@ func (s *Simulator) Output() {
 							// lock
 							// signal
 							// unlock
+							s.NextObj.Lock.Lock()
 							log.Printf("Signal %s", s.GetName())
-							s.GChannel <- 1
-							// lock
+							s.NextObj.Cond.Signal()
+							s.NextObj.Lock.Unlock()
+
+							s.Lock.Lock()
 							for len(s.NextObj.GetTimeExternalInput()) > s.GetLimitArrayExtInputs() {
 								// await
 								log.Printf("Wait %s", s.GetName())
-								<-s.GChannel
+								s.Cond.Wait()
 							}
-
 							// unlock
+							s.Lock.Unlock()
 						}
 					} else {
 						u = false
@@ -491,12 +502,10 @@ func (s *Simulator) GoUntil(limitTime float64) {
 			// lock
 			// await
 			// unlock
+			s.Lock.Lock()
 			log.Printf("Wait %s \n", s.GetName())
-			a, ok := <-s.GChannel
-			if !ok {
-				log.Fatalln("ERRORRRRRRR")
-			}
-			log.Println(a)
+			s.Cond.Wait()
+			s.Lock.Unlock()
 			log.Println("checking is stop")
 		}
 
@@ -511,9 +520,11 @@ func (s *Simulator) GoUntil(limitTime float64) {
 					// lock
 					s.NextObj.AddTimeExternalInput(math.MaxFloat64)
 					log.Printf("Signal %s \n", s.GetName())
-					s.GChannel <- 1
+					s.NextObj.Lock.Lock()
 					// signal
+					s.NextObj.Cond.Signal()
 					// unclock
+					s.NextObj.Lock.Unlock()
 				} else {
 					if s.PrevObj != nil {
 						if len(s.GetTimeExternalInput()) == 0 || s.GetTimeExternalInput()[len(s.GetTimeExternalInput())- 1] < math.MaxFloat64 {
@@ -521,8 +532,10 @@ func (s *Simulator) GoUntil(limitTime float64) {
 								// lock
 								// await
 								// unlock
+								s.Lock.Lock()
 								log.Printf("Wait %s \n", s.GetName())
-								<-s.GChannel
+								s.Cond.Wait()
+								s.Lock.Unlock()
 							}
 						}
 
@@ -533,8 +546,10 @@ func (s *Simulator) GoUntil(limitTime float64) {
 								s.NextObj.AddTimeExternalInput(math.MaxFloat64)
 								// signal
 								// unlock
+								s.NextObj.Lock.Lock()
+								s.NextObj.Cond.Signal()
 								log.Printf("Signal %s \n", s.GetName())
-								s.GChannel <- 1
+								s.NextObj.Lock.Unlock()
 							}
 						} else {
 							s.MoveTimeLocal(limit)
@@ -547,8 +562,10 @@ func (s *Simulator) GoUntil(limitTime float64) {
 								// lock prevObj
 								// signal
 								// unlock
+								s.PrevObj.Lock.Lock()
 								log.Printf("Signal %s \n", s.GetName())
-								s.GChannel <- 1
+								s.PrevObj.Cond.Signal()
+								s.PrevObj.Lock.Unlock()
 							}
 						}
 					} else {
@@ -566,16 +583,18 @@ func (s *Simulator) Run() {
 		limitTime := s.GetTimeMod()
 		if s.PrevObj != nil {
 			// lock
+			s.Lock.Lock()
 			for len(s.GetTimeExternalInput()) == 0 {
 				// await
 				log.Printf("Wait %s \n", s.GetName())
-				<-s.GChannel
+				s.Cond.Wait()
 			}
 
 			limitTime = s.GetTimeExternalInput()[0]
 			if limitTime > s.GetTimeMod() {
 				limitTime = s.GetTimeMod()
 			}
+			s.Lock.Unlock()
 		} else {
 			limitTime = s.GetTimeMod()
 		}
@@ -585,6 +604,7 @@ func (s *Simulator) Run() {
 			s.GoUntil(limitTime)
 			log.Printf("%s counter: %d", s.GetName(), s.Counter)
 		} else {
+			log.Println("EXIT")
 			return
 		}
 	}
